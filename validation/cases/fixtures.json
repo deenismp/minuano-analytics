@@ -1,0 +1,214 @@
+{
+  "_comment": "Static, hand-authored expectations. The source of truth for the validation contract in docs/spec-increment-1.md. Never generate these from the collector's own output -- the expectation must not come from the mechanism being verified.",
+  "fixtures": [
+    {
+      "name": "minimal_valid",
+      "expect": "good",
+      "why": "required fields only",
+      "event": {
+        "schema_version": "0",
+        "event_name": "page_view",
+        "event_timestamp": "2026-07-27T12:00:00Z",
+        "anonymous_id": "anon_0000001",
+        "session_id": "1785500000"
+      }
+    },
+    {
+      "name": "full_valid",
+      "expect": "good",
+      "why": "every optional object populated",
+      "event": {
+        "schema_version": "0",
+        "event_name": "signup_completed",
+        "event_timestamp": "2026-07-27T12:00:01Z",
+        "anonymous_id": "anon_0000002",
+        "session_id": "1785500001",
+        "user_id": "user-42",
+        "page": {
+          "url": "https://example.com/pricing?utm_source=newsletter",
+          "path": "/pricing",
+          "title": "Pricing",
+          "referrer": "https://news.ycombinator.com/"
+        },
+        "campaign": {
+          "source": "newsletter",
+          "medium": "email",
+          "campaign": "july_launch",
+          "content": "hero_button",
+          "term": null,
+          "attribution": "last_touch"
+        },
+        "device": {
+          "platform": "web",
+          "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+          "language": "pt-BR",
+          "screen_width": 1512,
+          "screen_height": 982
+        },
+        "params": { "plan": "pro", "seats": 3, "trial": true, "coupon": null }
+      }
+    },
+    {
+      "name": "client_supplied_ingested_at_is_overwritten",
+      "expect": "good",
+      "why": "ingested_at is server-derived; a client value must not survive",
+      "assert": { "ingested_at_not": "1999-01-01T00:00:00Z" },
+      "event": {
+        "schema_version": "0",
+        "event_name": "page_view",
+        "event_timestamp": "2026-07-27T12:00:02Z",
+        "ingested_at": "1999-01-01T00:00:00Z",
+        "anonymous_id": "anon_0000003",
+        "session_id": "1785500002"
+      }
+    },
+    {
+      "name": "secret_shaped_params_are_redacted",
+      "expect": "good",
+      "why": "error.md TRAP-4 -- redact by replacement, never deletion",
+      "assert": { "redacted_params": ["auth_token", "apikey", "magiclink_token"] },
+      "event": {
+        "schema_version": "0",
+        "event_name": "login_attempt",
+        "event_timestamp": "2026-07-27T12:00:03Z",
+        "anonymous_id": "anon_0000004",
+        "session_id": "1785500003",
+        "params": {
+          "auth_token": "eyJhbGciOiJIUzI1NiJ9.super.secret",
+          "apikey": "sk-live-should-never-land",
+          "magiclink_token": "one-time-value",
+          "plan": "free"
+        }
+      }
+    },
+    {
+      "name": "server_platform_relay",
+      "expect": "good",
+      "why": "device context comes from the payload, never the socket -- server-side GTM relay shape",
+      "assert": { "user_agent_is": "RelayedAgent/1.0 (not the collector's socket)" },
+      "event": {
+        "schema_version": "0",
+        "event_name": "purchase_completed",
+        "event_timestamp": "2026-07-27T12:00:04Z",
+        "anonymous_id": "anon_0000005",
+        "session_id": "1785500004",
+        "device": {
+          "platform": "server",
+          "user_agent": "RelayedAgent/1.0 (not the collector's socket)",
+          "language": "en-US"
+        }
+      }
+    },
+    {
+      "name": "missing_session_id",
+      "expect": "bad",
+      "why": "session_id is required",
+      "event": {
+        "schema_version": "0",
+        "event_name": "page_view",
+        "event_timestamp": "2026-07-27T12:00:05Z",
+        "anonymous_id": "anon_0000006"
+      }
+    },
+    {
+      "name": "event_name_uppercase",
+      "expect": "bad",
+      "why": "event_name pattern is lowercase snake only",
+      "event": {
+        "schema_version": "0",
+        "event_name": "PageView",
+        "event_timestamp": "2026-07-27T12:00:06Z",
+        "anonymous_id": "anon_0000007",
+        "session_id": "1785500006"
+      }
+    },
+    {
+      "name": "unknown_top_level_field",
+      "expect": "bad",
+      "why": "additionalProperties is false at the root",
+      "event": {
+        "schema_version": "0",
+        "event_name": "page_view",
+        "event_timestamp": "2026-07-27T12:00:07Z",
+        "anonymous_id": "anon_0000008",
+        "session_id": "1785500007",
+        "revenue": 99.9
+      }
+    },
+    {
+      "name": "nested_param",
+      "expect": "bad",
+      "why": "params are flat, one level -- nested objects wreck Athena queries",
+      "event": {
+        "schema_version": "0",
+        "event_name": "checkout_started",
+        "event_timestamp": "2026-07-27T12:00:08Z",
+        "anonymous_id": "anon_0000009",
+        "session_id": "1785500008",
+        "params": { "cart": { "items": 3 } }
+      }
+    },
+    {
+      "name": "wrong_schema_version",
+      "expect": "bad",
+      "why": "schema_version is const '0' for this contract",
+      "event": {
+        "schema_version": "1",
+        "event_name": "page_view",
+        "event_timestamp": "2026-07-27T12:00:09Z",
+        "anonymous_id": "anon_0000010",
+        "session_id": "1785500009"
+      }
+    },
+    {
+      "name": "malformed_timestamp",
+      "expect": "bad",
+      "why": "event_timestamp must be RFC3339 date-time",
+      "event": {
+        "schema_version": "0",
+        "event_name": "page_view",
+        "event_timestamp": "last tuesday",
+        "anonymous_id": "anon_0000011",
+        "session_id": "1785500010"
+      }
+    },
+    {
+      "name": "anonymous_id_too_short",
+      "expect": "bad",
+      "why": "anonymous_id minLength is 8",
+      "event": {
+        "schema_version": "0",
+        "event_name": "page_view",
+        "event_timestamp": "2026-07-27T12:00:11Z",
+        "anonymous_id": "abc",
+        "session_id": "1785500011"
+      }
+    },
+    {
+      "name": "invalid_attribution_enum",
+      "expect": "bad",
+      "why": "campaign.attribution is first_touch or last_touch only",
+      "event": {
+        "schema_version": "0",
+        "event_name": "page_view",
+        "event_timestamp": "2026-07-27T12:00:12Z",
+        "anonymous_id": "anon_0000012",
+        "session_id": "1785500012",
+        "campaign": { "source": "google", "medium": "cpc", "attribution": "mid_touch" }
+      }
+    },
+    {
+      "name": "invalid_platform_enum",
+      "expect": "bad",
+      "why": "device.platform is web|android|ios|server",
+      "event": {
+        "schema_version": "0",
+        "event_name": "page_view",
+        "event_timestamp": "2026-07-27T12:00:13Z",
+        "anonymous_id": "anon_0000013",
+        "session_id": "1785500013",
+        "device": { "platform": "smart_fridge" }
+      }
+    }
+  ]
+}

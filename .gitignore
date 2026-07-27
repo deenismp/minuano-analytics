@@ -1,0 +1,23 @@
+# collected events — never committed
+data/
+
+# validation run output — evidence is regenerated, not versioned
+validation/output/*
+!validation/output/.gitkeep
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# node (snippet minification only)
+node_modules/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/

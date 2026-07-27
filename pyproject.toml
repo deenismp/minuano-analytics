@@ -1,0 +1,22 @@
+[project]
+name = "minuano-collector"
+version = "0.0.1"
+description = "minuano event collector — raw collection, no enrichment"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+
+# Dependencies are added only by explicit decision. boto3 arrives with the S3 writer
+# in increment 2. The validation harness uses the standard library on purpose, so that
+# testing the collector needs no test-only dependency.
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.34",
+    "jsonschema>=4.23",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["collector"]
