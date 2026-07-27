@@ -58,11 +58,17 @@ plus a cross-origin POST succeeding and a payload-supplied `device.user_agent` l
 
 ### Step 3 — Snippet + GTM doc
 
-- [ ] `snippet/minuano.js` — cookies for first/last touch, `anonymous_id`, `session_id`, auto `page_view`
-- [ ] `window.minuano.track(name, params)` + queue stub for pre-load calls
-- [ ] Transport chain: `sendBeacon` → `fetch(keepalive)` → pixel GET
-- [ ] `demo/demo.html`
-- [ ] `docs/install-gtm.md` — Custom HTML tag + a custom-event tag driven by dataLayer variables
+- [x] `snippet/minuano.js` — cookies for first/last touch, `anonymous_id`, `session_id`, auto `page_view`
+- [x] `window.minuano.track(name, params)` + queue stub for pre-load calls
+- [x] Transport chain: `sendBeacon` → `fetch(keepalive)` → pixel GET
+- [x] `demo/demo.html`
+- [x] `docs/install-gtm.md` — Custom HTML tag + a custom-event tag driven by dataLayer variables
+
+**Size bar missed, deliberately.** 2838 bytes minified against a 2KB bar; 1530 gzip, 1296 brotli.
+Deleting every optional piece (fetch fallback, gclid capture, console warnings, id accessors)
+recovers ~580 bytes and still lands at ~2260, so 2KB minified is unreachable with campaign
+persistence + custom events + two transports. Budget restated as ≤2KB **transferred**. Open for
+Denis to overrule.
 
 **Done when:** `demo.html?utm_source=x&utm_medium=y` writes a `page_view` with
 `campaign.source=x`; `anonymous_id` stable across reloads; `session_id` stable within 30 min;

@@ -41,6 +41,37 @@ Two consequences worth stating up front:
   is what makes server-side relays (server-side GTM, future server SDKs) work correctly rather than
   labelling every event with the relay's identity.
 
+## Quick start
+
+```bash
+uv sync
+
+# terminal 1 -- the collector, writing to ./data
+uv run uvicorn collector.app:app --reload
+
+# terminal 2 -- serve the demo page
+python3 -m http.server 8080
+
+open "http://localhost:8080/demo/demo.html?utm_source=newsletter&utm_medium=email"
+```
+
+Click a button on the demo page, then look in `data/events/dt=<today>/`. Anything that failed
+validation is in `data/bad/` with its errors attached — nothing is ever dropped.
+
+Configuration is environment variables only:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MINUANO_DATA_DIR` | `./data` | where NDJSON lands |
+| `MINUANO_FLUSH_MAX_EVENTS` | `100` | flush when this many events are buffered |
+| `MINUANO_FLUSH_MAX_SECONDS` | `5` | flush at least this often |
+| `MINUANO_MAX_BODY_BYTES` | `1048576` | larger bodies get the one and only 4xx |
+| `MINUANO_CORS_ORIGINS` | `*` | comma-separated; set this in production |
+| `MINUANO_INSTANCE_ID` | random | appears in every filename, so instances never collide |
+
+Tests: `uv run validation/checks/check_schema.py`, `check_output.py`, `check_snippet.py`. See
+[`validation/README.md`](validation/README.md) — including what they do *not* prove.
+
 ## The event contract
 
 [`schema/event.v0.json`](schema/event.v0.json) — JSON Schema draft 2020-12. Required:

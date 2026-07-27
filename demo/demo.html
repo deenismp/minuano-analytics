@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>minuano — local demo</title>
+  <style>
+    body { font: 16px/1.6 ui-sans-serif, system-ui, sans-serif; max-width: 46rem; margin: 3rem auto; padding: 0 1.25rem; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+    pre { background: #f4f4f5; padding: .75rem 1rem; border-radius: .375rem; overflow-x: auto; }
+    button { font: inherit; padding: .4rem .9rem; margin: 0 .4rem .5rem 0; border: 1px solid #d4d4d8; border-radius: .375rem; background: #fff; cursor: pointer; }
+    button:hover { background: #f4f4f5; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; }
+    dt { font-weight: 600; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #18181b; color: #e4e4e7; }
+      pre { background: #27272a; }
+      button { background: #27272a; color: inherit; border-color: #3f3f46; }
+      button:hover { background: #3f3f46; }
+    }
+  </style>
+
+  <!-- 1. Queue stub. Anything pushed before the snippet loads is replayed once it does. -->
+  <script>window.minuano = window.minuano || [];</script>
+
+  <!-- 2. A custom event fired before the snippet has loaded, to prove the queue works. -->
+  <script>window.minuano.push(['demo_page_opened', { source: 'queue_stub' }]);</script>
+
+  <!-- 3. The snippet. -->
+  <script src="../snippet/minuano.js" data-endpoint="http://127.0.0.1:8000/collect"></script>
+</head>
+<body>
+  <h1>minuano — local demo</h1>
+
+  <p>
+    Start the collector, then reload this page with campaign parameters, for example
+    <code>?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=july_launch</code>.
+  </p>
+
+  <pre>uv run uvicorn collector.app:app --reload
+python3 -m http.server 8080 --directory .
+open "http://localhost:8080/demo/demo.html?utm_source=newsletter&amp;utm_medium=email"</pre>
+
+  <h2>This visitor</h2>
+  <dl id="identity"></dl>
+
+  <h2>Fire a custom event</h2>
+  <p>
+    <button onclick="minuano.track('signup_completed', { plan: 'pro', seats: 3 })">signup_completed</button>
+    <button onclick="minuano.track('checkout_started', { value: 49.9, currency: 'BRL' })">checkout_started</button>
+    <button onclick="minuano.track('Invalid Name')">invalid name (ignored, check console)</button>
+    <button onclick="minuano.track('bad_param', { cart: { items: 2 } })">nested param (dropped, check console)</button>
+  </p>
+
+  <p>Then look at <code>data/events/dt=&lt;today&gt;/</code>. Anything that fails validation is in
+  <code>data/bad/</code> rather than lost.</p>
+
+  <script>
+    document.getElementById('identity').innerHTML =
+      '<dt>anonymous_id</dt><dd><code>' + minuano.anonymousId() + '</code></dd>' +
+      '<dt>session_id</dt><dd><code>' + minuano.sessionId() + '</code></dd>' +
+      '<dt>cookies</dt><dd><code>' + (document.cookie || '(none)') + '</code></dd>';
+  </script>
+</body>
+</html>

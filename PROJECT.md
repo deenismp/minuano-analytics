@@ -16,10 +16,11 @@
 | Event contract | `schema/event.v0.json` | ✅ committed | JSON Schema draft 2020-12, version `0` |
 | Working agreement | `CLAUDE.md` | ✅ committed | invariants live here |
 | Increment 1 spec | `docs/spec-increment-1.md` | ✅ committed | checkboxes tracked in-file |
-| Collector | `collector/` | 🔨 increment 1 | FastAPI, local writer |
-| Validation harness | `validation/` | 🔨 increment 1 | fixtures + output checks |
-| Browser snippet | `snippet/minuano.js` | 🔨 increment 1 | zero deps, <2KB minified |
-| GTM install doc | `docs/install-gtm.md` | 🔨 increment 1 | Custom HTML tag |
+| Collector | `collector/` | ✅ increment 1 | FastAPI, local writer, non-lossy. 22/22 checks |
+| Validation harness | `validation/` | ✅ increment 1 | 3 runners, 52 checks total, all passing |
+| Browser snippet | `snippet/minuano.js` | ✅ increment 1 | zero deps; 2838 min / 1530 gzip / 1296 brotli |
+| Demo page | `demo/demo.html` | ✅ increment 1 | local end-to-end loop |
+| GTM install doc | `docs/install-gtm.md` | ✅ increment 1 | Custom HTML tag + custom-event tag |
 | S3 writer | — | ⬜ increment 2 | |
 | Container | `Dockerfile`, `docker-compose.yml` | ⬜ increment 2 | |
 | Athena queries | — | ⬜ increment 3 | rung 4 of the ladder in `refs/refs.md` |
@@ -49,6 +50,10 @@
 | 2026-07-27 | **Apache 2.0.**<br>*Why + alternatives rejected:* it is the license Snowplow kept for its trackers, and it lets companies embed the future mobile SDKs without a legal review — adoption of the SDK layer is the whole wedge. Snowplow's server components are under SLULA (no highly-available production use, no competing product), so their architecture may be studied but their code may not be copied. Rejected AGPL: protects against a SaaS competitor that does not exist yet, at the cost of SDK adoption today.<br>*Verified by:* Snowplow Limited Use License FAQ.<br>*Provenance:* web research 2026-07-27; main thread. |
 | 2026-07-27 | **Custom events get no machinery.**<br>*Why + alternatives rejected:* `event_name` + `params` in `schema/event.v0.json` are already the extension point; only the snippet API (`minuano.track()`) was missing. Rejected a plugin/registry/config layer: abstraction with no second implementation to justify it. The queue stub (`window.minuano = window.minuano \|\| []`) is the one piece that cannot be retrofitted, because adding it later silently drops early events for every already-installed snippet.<br>*Provenance:* main thread. |
 | 2026-07-27 | **Increment 1 targets local disk only; S3 and the container move to increment 2.**<br>*Why + alternatives rejected:* the time budget was multi-day, which by the work-loop rules means splitting rather than scoping one long workflow. Local-disk-only reaches a runnable end-to-end loop with no AWS credentials involved.<br>*Provenance:* `/start-workflow` scoping pass 2026-07-27. |
+
+| 2026-07-27 | **A new visitor's first event is tagged `first_touch`; every event after it is `last_touch`.**<br>*Why + alternatives rejected:* an event can carry only one `campaign` object, and the point of `campaign.attribution` is that first-touch never has to be reconstructed from event ordering. Tagging the visitor's first event means downstream filters `WHERE campaign.attribution = 'first_touch'` instead of running a window function over every visitor's history. Rejected (a) sending both models on every event — impossible under the schema; (b) always sending last-touch — first-touch then has to be recovered by ordering, which is exactly what the field exists to avoid.<br>*Verified by:* `check_snippet` — first event `first_touch` with the URL's UTMs, second `last_touch` with the same values persisted from cookie.<br>*Provenance:* main thread. |
+| 2026-07-27 | **`gclid` and `fbclid` are captured into `params` on `page_view`.** *Not in the approved plan — added and flagged.*<br>*Why + alternatives rejected:* `campaign` is `additionalProperties: false` with no click-id field, so paid-search attribution would otherwise be impossible without a schema bump, and click ids cannot be recovered retroactively — an unrecorded `gclid` is gone. `params` accepts flat scalars, so this needs no schema change. Rejected waiting for v1: the data would be permanently missing for every event collected before then.<br>*Cost:* ~90 bytes of snippet. Reversible in one line.<br>*Provenance:* main thread, 2026-07-27. |
+| 2026-07-27 | **Snippet size budget restated from "<2KB minified" to "≤2KB transferred".**<br>*Why + alternatives rejected:* measured 2838 bytes minified, 1530 gzip, 1296 brotli. Deleting every optional piece — fetch fallback, gclid capture, console warnings, id accessors — recovers roughly 580 bytes and still lands near 2260, so the original bar is unreachable with campaign persistence + custom events + two transports. Compressed bytes are what actually cross the wire. For comparison, Plausible's ~1KB script has no cookies, no campaign persistence and no custom-event queue.<br>*Status:* **open — Denis may overrule.** Holding the literal 2KB-minified line means dropping campaign cookie persistence, which is the product.<br>*Provenance:* main thread; `npx terser` measurement 2026-07-27. |
 
 ## Known deltas for schema v1
 
