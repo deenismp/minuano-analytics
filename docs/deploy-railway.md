@@ -1,5 +1,8 @@
 # Deploying the collector to Railway, writing to Google Cloud Storage
 
+> One worked example. [`deploy.md`](deploy.md) has the platform-agnostic contract — read that
+> first if you are on Render, Fly, Cloud Run, ECS or Kubernetes.
+
 Railway runs the container; GCS holds the events. Railway has an ephemeral filesystem, so the
 local sink would lose everything on each redeploy — the object store is not optional here.
 

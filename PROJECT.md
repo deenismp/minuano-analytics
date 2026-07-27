@@ -27,6 +27,7 @@
 | Sessions | `sql/sessions.sql` | ✅ increment 3 | attribution at session start; the 30-min rule reproduces the reference platform sessions to **-0.08%** on real traffic |
 | Channel grouping | `sql/channels.sql` | ✅ increment 3 | the reference platform default channel group, ordered CASE. **≥99.6% agreement with the reference platform on 7.8M real events, two independent properties** |
 | Athena | — | ⬜ blocked | needs the sink pointed at a real bucket; the SQL is written for it |
+| Deploy docs | `docs/deploy.md`, `docs/deploy-railway.md` | ✅ increment 6 | platform contract + one worked example |
 | CI | `.github/workflows/ci.yml` | ✅ increment 5 | all six suites on ubuntu; found BUG-1 on its first run |
 | Contributor docs | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/` | ✅ increment 5 | issue + PR templates |
 | Reference pack | `refs/refs.md` | ✅ committed | pre-existing research |

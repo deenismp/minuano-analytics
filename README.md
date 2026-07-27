@@ -197,6 +197,18 @@ precisely so the sandboxed-template route works, since GTM's `sendPixel` API is 
 The dashboard is deliberately last. It does not get built until real data has been sitting in
 storage for a week and been queried with Athena.
 
+## Deploying
+
+The collector is a stateless container and does not assume a cloud.
+[`docs/deploy.md`](docs/deploy.md) states the contract a platform has to satisfy — reads `$PORT`,
+sends `SIGTERM`, gives you environment variables, and a shutdown grace period longer than your
+flush interval. Railway, Render, Fly, Cloud Run, ECS and Kubernetes all qualify.
+
+The one thing to get right on any of them: **the container filesystem is usually ephemeral**, so
+point `MINUANO_SINK_URI` at an object store rather than a local path, or a redeploy silently
+erases everything collected. A worked example is in
+[`docs/deploy-railway.md`](docs/deploy-railway.md).
+
 ## Contributing
 
 Opinions are as welcome as code — the schema is version `0`, so the design is still genuinely
