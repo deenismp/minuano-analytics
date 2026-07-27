@@ -1,3 +1,16 @@
+# Credentials must never enter the build context, even though the Dockerfile COPYs only
+# named directories -- one future `COPY . .` would otherwise bake a key into a public image.
+*service-account*.json
+*-credentials*.json
+*-key.json
+minuano-analytics-*.json
+gtm-*.json
+*.pem
+*.key
+*.p12
+.env
+.env.*
+
 .git/
 .venv/
 data/

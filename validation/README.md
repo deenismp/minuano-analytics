@@ -64,12 +64,18 @@ proves nothing.
 - ~~**The container is proved on one platform.**~~ **Closed 2026-07-27.** CI runs the container
   suite on ubuntu-latest x86 as well as macOS arm64 — and found a data-loss bug on its first run
   (`error.md` BUG-1). Still unproven: any other architecture, and rootless Docker/Podman.
-- **The channel classifier is checked against nine hand-picked sessions, not against the reference platform.** Every
-  fixture was written to exercise a branch, so passing means the CASE does what the doc says — not
-  that minuano and the reference platform would agree on real traffic. The honest test is running both over the same
-  property and diffing. Two known approximations: the search/social source lists are a seed list
-  rather than the reference platform's managed one, and channels driven by Google Ads metadata (ad network type,
-  campaign type) cannot be reproduced from UTMs at all.
+- **The channel classifier now agrees with the reference platform on 99.5% of a real 7.4M-event sample** — measured
+  2026-07-27 by diffing this macro against the reference platform's own `default_channel_group` over the same
+  source/medium pairs. It was 92.9% before that diff; the corrections are in `sql/channels.sql`.
+  The residual 0.45% is two classes, one structural and one cosmetic:
+  - **Structural, unfixable from UTMs:** `google`/`cpc` that the reference platform calls *Display*, and campaigns it
+    calls *Cross-network* without the words appearing anywhere. Both need Google Ads metadata —
+    ad network type and campaign type — that a UTM does not carry. ~26k events, 0.35%.
+  - **Cosmetic, substring over-matching:** `docs.google.com` and `keep.google.com` become Organic
+    Search because `google` matches as a substring; `pinterest.lightning.force.com` becomes Organic
+    Social for the same reason. Fixing it properly needs a managed host list, which is the thing
+    a seed list is deliberately not. ~4.5k events, 0.06%.
+  Nine hand-authored fixtures still guard each branch; the real sample is what found the gaps.
 - **The SQL has never run on Athena.** It is written to port — one path change — but Trino and
   DuckDB disagree on enough (struct access, `arg_min`, `date_diff` argument order, regex flavour)
   that "ports cleanly" is a claim, not a result, until it runs there.

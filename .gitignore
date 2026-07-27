@@ -1,3 +1,17 @@
+# Credentials — never committed, in a public repo least of all.
+# Keep keys OUTSIDE the repo where possible; a .gitignore entry does not stop `git add -f`,
+# an editor sync, a backup tool, or a `docker build` context from picking one up.
+*service-account*.json
+*-credentials*.json
+*-key.json
+minuano-analytics-*.json
+gtm-*.json
+*.pem
+*.key
+*.p12
+.env
+.env.*
+
 # collected events — never committed
 data/
 
