@@ -34,7 +34,7 @@ from typing import Any
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import __version__, config
+from . import __version__, config, credentials
 from .validate import redact, validate
 from .writer import BufferedNDJSONWriter, make_writer
 
@@ -56,6 +56,12 @@ def _now() -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Must run before the writer resolves its filesystem, or the cloud backend authenticates
+    # against nothing. Returns a description, never the key material.
+    setup = credentials.bootstrap()
+    if setup:
+        log("info", "cloud credentials ready", detail=setup)
+
     writer = app.state.writer = make_writer(CFG)
 
     # Refuse to start rather than accept traffic we cannot store. An unwritable sink discovered

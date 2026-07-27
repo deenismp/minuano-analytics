@@ -1,0 +1,25 @@
+# Railway build and deploy config. The Dockerfile is the source of truth for how the app runs;
+# this only tells Railway which builder to use and how to treat a failing container.
+#
+# NOT configurable here, and both will bite you:
+#   * Target Port — Settings → Networking. The edge proxy cannot route without it, and a deploy
+#     with it unset "succeeds" while the URL returns 502.
+#   * GitHub connection — `git push` deploys nothing unless the repo is connected in the Railway
+#     UI. If it is not, deploy with `railway up`.
+# See docs/deploy-railway.md.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# The collector holds events in memory between flushes, so a crash loop loses them. Retry a
+# transient failure a few times, then stop and be visibly broken rather than quietly restarting.
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# /healthz reports `degraded` (still 200) when flushes are failing but events are still being
+# held. A 200 here means the process is up, not that the sink is healthy — watch the logs for
+# `collector stopped with events still buffered`.
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30

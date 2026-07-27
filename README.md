@@ -143,6 +143,8 @@ Everything else is environment variables too:
 | `MINUANO_MAX_BODY_BYTES` | `1048576` | larger bodies get the one and only 4xx |
 | `MINUANO_CORS_ORIGINS` | `*` | comma-separated; set this in production |
 | `MINUANO_INSTANCE_ID` | random | appears in every object name, so instances never collide |
+| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | — | the raw key JSON, for hosts with no filesystem to mount one into. Written to a `0600` temp file at boot, never logged |
+| `PORT` | `8000` | the container binds whatever the platform assigns |
 
 ### Querying what you collected
 
@@ -190,7 +192,7 @@ precisely so the sandboxed-template route works, since GTM's `sendPixel` API is 
 | 2 | object-store writer, Dockerfile, docker-compose | ✅ |
 | 3 | query layer, sessions, the reference platform channel grouping (DuckDB, local) | ✅ |
 | 4 | one URI-based sink across AWS/GCP/Azure, docker as the entry point | ✅ |
-| later | a real bucket on each cloud · Athena · GTM Custom Template · server-side GTM tag · dashboard · Android and iOS SDKs | |
+| later | `s3://` and `az://` against real buckets · Athena · GTM Custom Template · server-side GTM tag · dashboard · Android and iOS SDKs | |
 
 The dashboard is deliberately last. It does not get built until real data has been sitting in
 storage for a week and been queried with Athena.

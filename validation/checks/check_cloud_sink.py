@@ -47,6 +47,13 @@ def main() -> int:
 
     import fsspec
 
+    from collector import credentials
+
+    # This process reads the bucket back, so it needs credentials too -- and on a PaaS they
+    # arrive as an environment variable, not a file. Same bridge the collector uses.
+    setup = credentials.bootstrap()
+    print(f"credentials: {setup or 'from the ambient environment'}")
+
     prefix = f"{SINK.rstrip('/')}/_selfcheck"
     fs, root = fsspec.core.url_to_fs(prefix)
     print(f"target: {prefix}\n")

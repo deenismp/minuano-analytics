@@ -46,7 +46,11 @@ VOLUME ["/data"]
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).status==200 else 1)"
 
-# Exec form, so uvicorn is PID 1 and receives SIGTERM directly. That signal is the flush:
-# uvicorn turns it into a lifespan shutdown, which drains the buffer.
+# `exec` matters as much as the port does: it replaces the shell so uvicorn is still PID 1 and
+# receives SIGTERM directly. That signal is the flush -- uvicorn turns it into a lifespan
+# shutdown, which drains the buffer. Drop the `exec` and the shell eats the signal, the buffer
+# is never written, and the container still looks healthy on the way down.
+#
+# $PORT is read because every PaaS assigns its own; 8000 is the local default.
 STOPSIGNAL SIGTERM
-CMD ["uvicorn", "collector.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec uvicorn collector.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
