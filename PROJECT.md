@@ -17,11 +17,11 @@
 | Working agreement | `CLAUDE.md` | ✅ committed | invariants live here |
 | Specs | `docs/spec-increment-{1,2,3,4}.md` | ✅ committed | checkboxes tracked in-file |
 | Collector | `collector/` | ✅ increment 1 | FastAPI, local writer, non-lossy. 22/22 checks |
-| Validation harness | `validation/` | ✅ increment 5 | 6 runners, 113 checks, green on macOS and Linux |
+| Validation harness | `validation/` | ✅ increment 5 | 7 runners, 122 checks; the cloud one skips without a bucket |
 | Browser snippet | `snippet/minuano.js` | ✅ increment 1 | zero deps; 2838 min / 1530 gzip / 1296 brotli |
 | Demo page | `demo/demo.html` | ✅ increment 1 | local end-to-end loop |
 | GTM install doc | `docs/install-gtm.md` | ✅ increment 1 | Custom HTML tag + custom-event tag |
-| Sink | `collector/writer.py` | ✅ increment 4 | one writer, one URI: `file://` `s3://` `gs://` `az://`. **No cloud has been written to** |
+| Sink | `collector/writer.py` | ✅ increment 4 | one writer, one URI. **GCS proved against a real bucket**; s3:// and az:// still untested |
 | Container | `Dockerfile`, `docker-compose.yml` | ✅ increment 4 | non-root, healthcheck, SIGTERM drain proved; profiles for demo and analytics |
 | Query layer | `sql/`, `analytics/run.py` | ✅ increment 3 | DuckDB over the NDJSON in place; SQL written to port to Athena |
 | Sessions | `sql/sessions.sql` | ✅ increment 3 | attribution at session start; 30-min re-derivation as a DQ test |

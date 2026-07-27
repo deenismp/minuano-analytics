@@ -70,26 +70,29 @@ observable effect — the drain log line and the file on disk — not on the exi
 reading uvicorn's source rather than guessing, which is what turned a "bug" into a corrected test
 in one step.
 
-## TRAP-7 — No cloud has ever been written to
+## TRAP-7 — No cloud had ever been written to
 
-**Date:** 2026-07-27 · **Status:** OPEN (updated for the fsspec sink)
+**Date:** 2026-07-27 · **Status:** FIXED for GCS; still OPEN for S3 and Azure
 
-`check_sink` proves the key layout and the bytes by comparing `file://` against `memory://`.
-`memory://` is genuinely not the local branch, so the object-store code path *is* exercised — but
-it cannot fail the way a cloud fails. Credentials, IAM, bucket policy, region routing, throttling,
-retries, and same-key overwrite behaviour are all unexercised, and `s3fs` / `gcsfs` / `adlfs` have
-never been imported here at all. Only the boot guard that reports them *missing* has been tested.
+Everything proving the sink ran against `file://` and `memory://`. Neither can fail the way a
+cloud fails — credentials, IAM, region routing, throttling — and `s3fs`/`gcsfs`/`adlfs` had never
+even been imported.
 
-**Do this before trusting any cloud sink**, once per cloud:
+**Closed for GCS on 2026-07-27** by `validation/checks/check_cloud_sink.py`, which runs the real
+collector against a real bucket: preflight wrote a probe object, the fixture set was accepted,
+SIGTERM drained to the cloud, and every event was read back out with `ingested_at` and the
+`<REDACTED>` param intact. 9/9.
+
+**Still unproven: `s3://` and `az://`.** They share the writer and differ only in the fsspec
+backend, so the risk is credentials and IAM rather than logic — but that is exactly the part
+`memory://` cannot exercise. Run the same check against each:
 
 ```bash
-MINUANO_EXTRAS=aws MINUANO_SINK_URI=s3://<bucket>/raw docker compose up --build
-# post validation/cases/fixtures.json, then confirm the objects and their contents in the bucket
+MINUANO_SINK_URI=s3://<bucket>/raw uv run --extra aws validation/checks/check_cloud_sink.py
 ```
 
-The DuckDB side is a *separate* untested path: `analytics/run.py` hands a cloud URI straight to
-DuckDB, which needs its own extension (`httpfs`, `azure`) and its own credentials. Writing to a
-cloud successfully says nothing about reading back from it.
+**Taught:** the preflight probe added for BUG-1 turned out to double as the credential test — if
+the collector boots against a cloud URI at all, IAM is already proven.
 
 ## TRAP-8 — DuckDB resolves a glob when the view is CREATED, not when it is queried
 

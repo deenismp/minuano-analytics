@@ -17,6 +17,8 @@ uv run validation/checks/check_snippet.py    # what the snippet actually sends (
 uv run validation/checks/check_sink.py       # sink parity across backends (no cloud needed)
 uv run validation/checks/check_container.py  # the container, and two instances on one prefix (needs docker)
 uv run validation/checks/check_analytics.py  # sessions and channel grouping over collected events
+MINUANO_SINK_URI=gs://bucket/raw \\
+  uv run --extra gcp validation/checks/check_cloud_sink.py   # a REAL bucket (skips without one)
 ```
 
 113 checks total: 14 + 22 + 16 + 14 + 19 + 28. All of them run in CI on Linux on every pull request.
@@ -46,11 +48,12 @@ proves nothing.
   script-written cookies, subdomain scoping — are not exercised. Neither is a real
   `navigator.sendBeacon`, only a stand-in with the same contract. **Open the demo page in a real
   browser before trusting any of it.**
-- **No cloud has ever been written to.** `memory://` exercises the object-store branch, but it
-  cannot fail the way a cloud fails: credentials, IAM, bucket policies, region routing, throttling,
-  retries, and what a PUT does when the key already exists are all unexercised. `s3fs` / `gcsfs` /
-  `adlfs` have never even been imported here — only the boot guard that reports them missing has
-  been tested. **A real-bucket run per cloud is required before any of the three is trusted.**
+- ~~**No cloud has ever been written to.**~~ **Closed for GCS 2026-07-27** — `check_cloud_sink.py`
+  ran the collector against a real bucket: probe object written at preflight, fixtures accepted,
+  SIGTERM drained to the cloud, events read back with `ingested_at` and redaction intact. **`s3://`
+  and `az://` are still unproven** — same writer, different backend, so the risk is credentials and
+  IAM rather than logic. Run the same check against each before trusting it. Throttling, retries,
+  and same-key overwrite remain unexercised on every backend.
 - **DuckDB has only ever read local files.** `analytics/run.py` accepts a cloud URI and hands it
   straight to DuckDB, which needs its own extension (`httpfs`, `azure`) and its own credentials —
   a completely separate path from the writer's, sharing only the URI string. Untested.
