@@ -43,8 +43,11 @@ EXPOSE 8000
 VOLUME ["/data"]
 
 # No curl in a slim image, and no reason to add one -- python is already here.
+# $PORT, not a literal: the CMD below binds whatever the platform assigns, and a healthcheck
+# pinned to 8000 would report a correctly-serving container unhealthy forever. Cloud Run injects
+# PORT=8080 by default, so this is not hypothetical.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).status==200 else 1)"
+    CMD python -c "import os,urllib.request,sys; port=os.environ.get('PORT','8000'); sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=2).status==200 else 1)"
 
 # `exec` matters as much as the port does: it replaces the shell so uvicorn is still PID 1 and
 # receives SIGTERM directly. That signal is the flush -- uvicorn turns it into a lifespan

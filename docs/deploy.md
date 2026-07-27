@@ -83,6 +83,9 @@ Then post one event and confirm it lands in your sink within the flush interval.
 
 ## Platform-specific runbooks
 
+- [Cloud Run + GCS](deploy-cloud-run.md) — the only host here where **no key exists at all**; the
+  service gets its own identity. Tightest shutdown window of any common host (~10s), which matters
+  because scale-to-zero makes shutdowns routine.
 - [Railway + GCS](deploy-railway.md) — including the two traps that cost hours: `git push` deploys
   nothing unless the repo is connected in the Railway UI, and an unset **Target Port** produces a
   "successful" deploy that returns 502.

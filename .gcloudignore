@@ -1,0 +1,34 @@
+# `gcloud run deploy --source .` uploads this directory to Cloud Build. Without this file gcloud
+# falls back to .gitignore, which is *usually* right and is not a guarantee — so the credential
+# patterns are repeated here explicitly rather than inherited.
+#
+# GCP service-account keys are named <project>-<12 hex>.json. Match the shape, not each project.
+*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].json
+*service-account*.json
+*-credentials*.json
+*-key.json
+*.pem
+*.key
+*.p12
+.env
+.env.*
+
+# Collected events and evidence — never part of a build.
+data/
+validation/output/
+
+.git/
+.gitignore
+.venv/
+node_modules/
+__pycache__/
+*.py[cod]
+
+# Not needed to run the collector. The image builds from pyproject/uv.lock plus the four source
+# directories the Dockerfile COPYs; everything else is repository furniture.
+demo/
+docs/
+refs/
+validation/
+.github/
+*.md

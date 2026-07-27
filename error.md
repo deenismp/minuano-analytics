@@ -156,6 +156,25 @@ then dropped one. Silent loss behind a clean exit is the same failure shape as a
 instead of a mystery. A platform you have not run on is not a small gap — CI on a second OS found
 a data-loss bug on its first execution.
 
+## TRAP-12 — A HEALTHCHECK pinned to a literal port lies when the platform assigns one
+
+**Date:** 2026-07-27 · **Status:** FIXED
+
+The `CMD` was fixed to read `$PORT` for Railway, but the `HEALTHCHECK` next to it still probed
+`127.0.0.1:8000`. A container told to listen on any other port would serve correctly and report
+unhealthy forever — and orchestrators restart unhealthy containers, so a working deploy would
+crash-loop.
+
+Surfaced by the `gcp-deploy` skill's note that **Cloud Run injects `PORT=8080` by default**, so
+this was one deploy away from being real rather than theoretical.
+
+**Fix:** the healthcheck reads `$PORT` with the same 8000 default as the CMD. Cloud Run ignores
+Docker's HEALTHCHECK and probes itself, so the damage would have landed on Railway, Fly, ECS or
+plain `docker run -e PORT=…` instead.
+
+**Taught:** when one line starts reading an environment variable, grep for the literal it replaced.
+The pair had to agree and nothing enforced it.
+
 ## TRAP-10 — An inferred schema disappears when the data is sparse
 
 **Date:** 2026-07-27 · **Status:** FIXED
