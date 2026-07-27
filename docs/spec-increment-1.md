@@ -38,16 +38,16 @@ deliberately invalid one fails.
 
 ### Step 2 — Collector, local writer, non-lossy
 
-- [ ] `POST /collect` — one event or an array; body parsed as JSON **regardless of `Content-Type`**
-- [ ] `GET /collect?e=<base64url>` — returns a 1×1 GIF (GTM `sendPixel` expects an image)
-- [ ] `GET /healthz`
-- [ ] CORS: `Access-Control-Allow-Origin` + `OPTIONS /collect`
-- [ ] `ingested_at` set server-side, always overwriting any client-supplied value
-- [ ] Always 2xx. Valid → `data/events/dt=…`, invalid → `data/bad/dt=…` with the error list
-- [ ] Buffered append, flush on count / age / SIGTERM
-- [ ] Unique filenames per instance
-- [ ] Config via env vars only; logs to stdout
-- [ ] `validation/` — fixtures + output checks
+- [x] `POST /collect` — one event or an array; body parsed as JSON **regardless of `Content-Type`**
+- [x] `GET /collect?e=<base64url>` — returns a 1×1 GIF (GTM `sendPixel` expects an image)
+- [x] `GET /healthz`
+- [x] CORS: `Access-Control-Allow-Origin` + `OPTIONS /collect`
+- [x] `ingested_at` set server-side, always overwriting any client-supplied value
+- [x] Always 2xx. Valid → `data/events/dt=…`, invalid → `data/bad/dt=…` with the error list
+- [x] Buffered append, flush on count / age / SIGTERM
+- [x] Unique filenames per instance
+- [x] Config via env vars only; logs to stdout
+- [x] `validation/` — fixtures + output checks
 
 **Done when:** both ingest paths write, and a deliberately malformed event lands in `bad/` with
 its error attached rather than vanishing.
