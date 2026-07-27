@@ -56,14 +56,28 @@ def _now() -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.writer = make_writer(CFG)
-    await app.state.writer.start()
+    writer = app.state.writer = make_writer(CFG)
+
+    # Refuse to start rather than accept traffic we cannot store. An unwritable sink discovered
+    # at the first flush has already been answered 2xx and the events are gone.
+    try:
+        writer.preflight()
+    except RuntimeError as exc:
+        log("error", "sink is not writable, refusing to start", sink_uri=CFG.sink_uri, detail=str(exc))
+        raise
+
+    await writer.start()
     log("info", "collector started", version=__version__, sink_uri=CFG.sink_uri, backend=CFG.scheme,
         flush_max_events=CFG.flush_max_events, flush_max_seconds=CFG.flush_max_seconds)
     yield
     # uvicorn turns SIGTERM into lifespan shutdown, so this is the SIGTERM flush.
-    written = await app.state.writer.stop()
-    log("info", "collector stopped, buffer drained", files_written=written)
+    written = await writer.stop()
+    if writer.buffered:
+        # Loud, not silent: a clean-looking exit that left events behind is the worst outcome.
+        log("error", "collector stopped with events still buffered", buffered=writer.buffered,
+            last_error=writer.last_error, files_written=written)
+    else:
+        log("info", "collector stopped, buffer drained", files_written=written)
 
 
 app = FastAPI(title="minuano collector", version=__version__, lifespan=lifespan)
@@ -134,11 +148,15 @@ async def _store_unparseable(request: Request, body: bytes, reason: str) -> None
 
 @app.get("/healthz")
 async def healthz(request: Request) -> dict:
+    writer = request.app.state.writer
     return {
-        "status": "ok",
+        # `degraded` means events are being accepted but a flush has failed and they are being
+        # held in memory. Still 200: the collector is up and losing nothing yet.
+        "status": "degraded" if writer.last_error else "ok",
         "version": __version__,
         "instance": CFG.instance_id,
-        "buffered": request.app.state.writer.buffered,
+        "buffered": writer.buffered,
+        "last_error": writer.last_error,
     }
 
 

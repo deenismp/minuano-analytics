@@ -68,8 +68,17 @@ def main() -> int:
                         help="local path or sink URI (default: $MINUANO_SINK_URI, else ./data)")
     args = parser.parse_args()
 
-    con = connect(args.data_dir)
     print(f"minuano analytics — {args.data_dir}")
+    try:
+        con = connect(args.data_dir)
+    except duckdb.Error as exc:
+        if "No files found" in str(exc):
+            print("\nNo events collected yet. Send one, then run this again:\n"
+                  "  curl -X POST localhost:8000/collect -d '{\"schema_version\":\"0\",\n"
+                  "    \"event_name\":\"page_view\",\"event_timestamp\":\"2026-01-01T00:00:00Z\",\n"
+                  "    \"anonymous_id\":\"anon_00000001\",\"session_id\":\"1785500000\"}'")
+            return 0
+        raise
 
     show(con, "volume", """
         SELECT count(*) AS events,

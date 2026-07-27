@@ -19,7 +19,7 @@ uv run validation/checks/check_container.py  # the container, and two instances 
 uv run validation/checks/check_analytics.py  # sessions and channel grouping over collected events
 ```
 
-110 checks total: 14 + 22 + 16 + 11 + 19 + 28.
+113 checks total: 14 + 22 + 16 + 14 + 19 + 28. All of them run in CI on Linux on every pull request.
 
 Each writes its console output to `validation/output/step*-*.txt`. All three exit non-zero on
 failure, so they compose into a pre-commit or CI step later.
@@ -31,7 +31,7 @@ failure, so they compose into a pre-commit or CI step later.
 | `check_schema` | every fixture in `cases/fixtures.json` validates or fails as hand-authored; secret-shaped `params` values are replaced while their keys survive |
 | `check_output` | rows in == rows on disk; good lines are schema-valid; `ingested_at` overwrote the client's value; `dt=` matches the UTC date of `ingested_at`; bad rows carry both their errors and the original payload; a cross-origin `text/plain` POST is accepted; a payload-supplied `user_agent` is not replaced by the socket's; the buffer drains on SIGTERM |
 | `check_snippet` | UTMs are read from the URL and persisted to a page without them; the first event of a new visitor is `first_touch` and the rest are `last_touch`; `anonymous_id` survives a session boundary; 31 minutes of inactivity starts a new `session_id`; a `track()` call made before load still lands; a nested param is dropped and the valid ones kept |
-| `check_sink` | `file://` and `memory://` produce byte-identical objects at identical keys — and `memory://` is not the local branch, so the object-store code path is exercised with no cloud SDK; one object per (stream, partition) per flush; no key reused; a URI whose backend is missing fails at boot **naming the extra to install**; an unknown scheme fails at boot |
+| `check_sink` | an unwritable sink is refused **at startup** rather than at first flush; a failed flush returns its events to the buffer instead of dropping them; `file://` and `memory://` produce byte-identical objects at identical keys — and `memory://` is not the local branch, so the object-store code path is exercised with no cloud SDK; one object per (stream, partition) per flush; no key reused; a URI whose backend is missing fails at boot **naming the extra to install**; an unknown scheme fails at boot |
 | `check_container` | the image builds and runs as a non-root user; the container's own `HEALTHCHECK` reports healthy; `docker compose stop` drains the buffer to the host volume; logs are one JSON object per line on stdout; `docker compose run --rm analytics` runs the same SQL in the container as on the host; the demo profile serves the page and the snippet; **two instances writing to one prefix lose nothing and do not overwrite each other** |
 | `check_analytics` | every collected event is visible to the query layer; three event-dates land in one ingest partition and filtering on `dt` for a past event-date returns 0 rows while `event_date` returns 3; sessions match the hand-authored shape; **attribution comes from the session's first event, not its last**; sessions re-derived from the 30-minute gap match the client's count; all nine fixture sessions classify into the expected the reference platform channel with none falling through to Unassigned |
 
@@ -61,9 +61,9 @@ proves nothing.
   never trip; only the SIGTERM drain is proved. A run with realistic bounds is missing.
 - **The 413 path is untested.** An oversized body is the one non-2xx response and no fixture
   exercises it.
-- **The container is proved on one platform.** macOS, Docker Desktop, arm64. The non-root user
-  writing to a bind mount is exactly the thing that behaves differently on Linux hosts, where uid
-  10001 may not own the host directory.
+- ~~**The container is proved on one platform.**~~ **Closed 2026-07-27.** CI runs the container
+  suite on ubuntu-latest x86 as well as macOS arm64 — and found a data-loss bug on its first run
+  (`error.md` BUG-1). Still unproven: any other architecture, and rootless Docker/Podman.
 - **The channel classifier is checked against nine hand-picked sessions, not against the reference platform.** Every
   fixture was written to exercise a branch, so passing means the CASE does what the doc says — not
   that minuano and the reference platform would agree on real traffic. The honest test is running both over the same

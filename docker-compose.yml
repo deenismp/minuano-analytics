@@ -22,6 +22,11 @@ x-image: &image
 services:
   collector:
     <<: *image
+    # On Linux a bind-mounted host directory is owned by you, and the image's default uid
+    # (10001) cannot write to it -- the collector refuses to start rather than lose events.
+    # Docker Desktop on macOS maps ownership for you, which is why the default works there.
+    #   Linux:  MINUANO_UID=$(id -u) MINUANO_GID=$(id -g) docker compose up
+    user: "${MINUANO_UID:-10001}:${MINUANO_GID:-10001}"
     ports:
       - "${MINUANO_PORT:-8000}:8000"
     environment:
@@ -43,6 +48,7 @@ services:
   analytics:
     <<: *image
     profiles: ["analytics"]
+    user: "${MINUANO_UID:-10001}:${MINUANO_GID:-10001}"
     entrypoint: ["python", "analytics/run.py", "--data-dir", "/data"]
     volumes:
       - ${MINUANO_HOST_DATA:-./data}:/data:ro

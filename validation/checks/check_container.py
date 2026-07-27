@@ -77,7 +77,10 @@ def container_checks() -> None:
         shutil.rmtree(HOST_DATA)
     HOST_DATA.mkdir(parents=True)
 
+    # Run the container as the user who owns the bind mount. On Linux this is required; on
+    # macOS Docker Desktop maps ownership anyway, so setting it matches what a Linux user does.
     env = {"MINUANO_HOST_DATA": str(HOST_DATA), "MINUANO_PORT": PORT,
+           "MINUANO_UID": str(os.getuid()), "MINUANO_GID": str(os.getgid()),
            "MINUANO_FLUSH_MAX_EVENTS": "10000", "MINUANO_FLUSH_MAX_SECONDS": "3600"}
 
     build = compose("build", env=env)
@@ -124,9 +127,11 @@ def container_checks() -> None:
               "logs are one JSON object per line on stdout",
               f"{len(parsed)} structured lines, e.g. msg={parsed[0]['msg']!r}" if parsed else "none parsed")
 
-        whoami = compose("run", "--rm", "--entrypoint", "id", "collector", "-un", env=env)
-        check(whoami.stdout.strip().endswith("minuano"), "container runs as a non-root user",
-              f"id -un -> {whoami.stdout.strip()!r}")
+        # Assert the property, not the name: with an explicit `user:` the uid need not exist in
+        # the image's /etc/passwd, so `id -un` may not resolve. Non-root is what matters.
+        whoami = compose("run", "--rm", "--entrypoint", "id", "collector", "-u", env=env)
+        uid = whoami.stdout.strip().splitlines()[-1] if whoami.stdout.strip() else ""
+        check(uid.isdigit() and uid != "0", "container runs as a non-root user", f"uid={uid!r}")
 
         # --- the analytics profile, over what the collector just wrote ---------------------
         report = compose("run", "--rm", "analytics", env=env)

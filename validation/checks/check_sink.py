@@ -120,6 +120,44 @@ async def run() -> None:
         check("unknown scheme" in str(exc) or "not installed" in str(exc),
               "an unknown scheme fails at boot", str(exc))
 
+    # --- preflight: an unwritable sink must be refused before any traffic is accepted -----
+    locked = ROOT / "validation" / "output" / "unwritable"
+    if locked.exists():
+        os.chmod(locked, 0o700)
+        shutil.rmtree(locked)
+    locked.mkdir(parents=True)
+    os.chmod(locked, 0o500)  # readable and traversable, not writable -- a Linux bind mount
+    try:
+        with_env(MINUANO_SINK_URI=f"file://{locked}/raw", MINUANO_INSTANCE_ID="preflight001")
+        writer = make_writer(config.load())
+        try:
+            writer.preflight()
+            check(False, "an unwritable sink is refused at startup", "preflight did not raise")
+        except RuntimeError as exc:
+            check("not writable" in str(exc) and "MINUANO_UID" in str(exc),
+                  "an unwritable sink is refused at startup, with the fix in the message",
+                  str(exc).splitlines()[0])
+    finally:
+        os.chmod(locked, 0o700)
+        shutil.rmtree(locked)
+
+    # A batch that fails to write goes back into the buffer instead of being dropped.
+    with_env(MINUANO_SINK_URI="memory://retain-test", MINUANO_INSTANCE_ID="retain000001",
+             MINUANO_FLUSH_MAX_EVENTS="10000")
+    writer = make_writer(config.load())
+    await writer.append("events", "2026-07-27", events(1, "2026-07-27")[0])
+
+    def explode(*args, **kwargs):
+        raise OSError("simulated object-store failure")
+
+    writer._put = explode
+    written = await writer.flush()
+    check(written == [] and writer.buffered == 1,
+          "a failed flush returns the events to the buffer rather than dropping them",
+          f"written={written} buffered={writer.buffered}")
+    check(writer.last_error and "simulated" in writer.last_error,
+          "the failure is recorded for /healthz to report", writer.last_error or "<none>")
+
     with_env(MINUANO_SINK_URI=None, MINUANO_INSTANCE_ID=None, MINUANO_FLUSH_MAX_EVENTS=None)
     check(config.load().sink_uri == "file://./data", "the default sink is local ./data",
           f"default={config.load().sink_uri}")

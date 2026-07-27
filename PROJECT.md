@@ -17,7 +17,7 @@
 | Working agreement | `CLAUDE.md` | ✅ committed | invariants live here |
 | Specs | `docs/spec-increment-{1,2,3,4}.md` | ✅ committed | checkboxes tracked in-file |
 | Collector | `collector/` | ✅ increment 1 | FastAPI, local writer, non-lossy. 22/22 checks |
-| Validation harness | `validation/` | ✅ increment 4 | 6 runners, 110 checks, all passing |
+| Validation harness | `validation/` | ✅ increment 5 | 6 runners, 113 checks, green on macOS and Linux |
 | Browser snippet | `snippet/minuano.js` | ✅ increment 1 | zero deps; 2838 min / 1530 gzip / 1296 brotli |
 | Demo page | `demo/demo.html` | ✅ increment 1 | local end-to-end loop |
 | GTM install doc | `docs/install-gtm.md` | ✅ increment 1 | Custom HTML tag + custom-event tag |
@@ -27,7 +27,7 @@
 | Sessions | `sql/sessions.sql` | ✅ increment 3 | attribution at session start; 30-min re-derivation as a DQ test |
 | Channel grouping | `sql/channels.sql` | ✅ increment 3 | the reference platform default channel group, ordered CASE, rules from Google's doc |
 | Athena | — | ⬜ blocked | needs the sink pointed at a real bucket; the SQL is written for it |
-| CI | `.github/workflows/ci.yml` | 🔨 increment 5 | all six suites on ubuntu — the first run off macOS |
+| CI | `.github/workflows/ci.yml` | ✅ increment 5 | all six suites on ubuntu; found BUG-1 on its first run |
 | Contributor docs | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/` | ✅ increment 5 | issue + PR templates |
 | Reference pack | `refs/refs.md` | ✅ committed | pre-existing research |
 
@@ -68,6 +68,8 @@
 
 | 2026-07-27 | **One `MINUANO_SINK_URI` over fsspec, not three cloud SDKs.**<br>*Why + alternatives rejected:* Denis asked for AWS, GCP and Azure. Three native writers would mean three heavy dependencies and three code paths to keep in sync, buying error handling that one small PUT per flush does not need. fsspec makes local disk and all three clouds *one* code path — this increment deleted more code than it added — and each backend brings its own cloud's credential chain, so instance roles, workload identity and managed identity work without minuano configuring anything. Extras (`aws`/`gcp`/`azure`) keep the base image free of any cloud SDK. Rejected **S3-compatible + endpoint override**: 4 lines and zero dependencies, but Azure Blob has no S3-compatible API, so it answers two clouds of three. Also rejected keeping `MINUANO_SINK`/`S3_BUCKET`/`S3_PREFIX`/`DATA_DIR` as aliases — four knobs for one destination, able to disagree.<br>*Verified by:* `check_sink` 11/11, including byte parity between `file://` and `memory://` (which is not the local branch, so it exercises the object-store path).<br>*Provenance:* main thread, 2026-07-27. |
 | 2026-07-27 | **The events view declares its schema instead of inferring it.**<br>*Why + alternatives rejected:* found by a failing container check — a dataset whose only event carried no `page` object produced no `page` column, and every downstream query failed to compile. That is what a server-side-only or freshly-started deployment looks like. Declaring the columns in `read_json` also stops types drifting between runs as data changes. Rejected `union_by_name`: it reconciles columns *across* files and does nothing when no file has the field.<br>*Verified by:* `check_container` 19/19 after the fix, `check_analytics` still 28/28.<br>*Provenance:* main thread, 2026-07-27. |
+
+| 2026-07-27 | **The collector refuses to start when the sink is not writable, and a failed flush retains its events.**<br>*Why + alternatives rejected:* CI's first Linux run found the collector answering 200 and then losing the event at flush time, because a bind-mounted host directory is not writable by the container's uid — and the exception disappeared inside the lifespan shutdown, so `docker compose stop` looked clean. Three fixes because one would not have been enough: a startup probe (an unwritable sink is a boot failure, consistent with the existing fail-at-boot decision for missing backends), a flush that returns failed batches to the buffer (this was a *separate* latent bug that would have dropped events on the first transient S3 error), and `MINUANO_UID`/`MINUANO_GID` in compose. Rejected running the container as root: it would fix the symptom by removing the guarantee that makes the image safe to deploy.<br>*Verified by:* `check_sink` (unwritable sink refused, failed flush retained), `check_container` 19/19 on both platforms.<br>*Provenance:* GitHub Actions run 30287142937; main thread, 2026-07-27. |
 
 ## Known deltas for schema v1
 

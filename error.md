@@ -120,6 +120,39 @@ No error, no warning, just a smaller number than the truth — the worst failure
 about `event_date`, pad `dt` by ±1 day (Boundary-File Padding). This is asserted in
 `check_analytics.py` so the tradeoff stays visible rather than becoming folklore.
 
+## BUG-1 — On Linux the container accepted events with a 200 and then silently lost them
+
+**Date:** 2026-07-27 · **Status:** FIXED · **Found by:** the first CI run, on ubuntu-latest
+
+`validation/README.md` had predicted this in writing: *"the non-root user writing to a bind mount
+is exactly the thing that behaves differently on Linux hosts, where uid 10001 may not own the host
+directory."* The first run off macOS proved it.
+
+The host directory is owned by the invoking user. The container runs as uid 10001. The write at
+flush time raised `PermissionError`, `flush()` had already taken the buffer, and the exception
+vanished inside the lifespan shutdown — so `docker compose stop` reported success, no drain log
+line appeared, and the event was gone. Docker Desktop on macOS maps ownership to the calling user,
+which hid it completely.
+
+**Severity:** the collector's central promise is that it never drops an event. It answered 200 and
+then dropped one. Silent loss behind a clean exit is the same failure shape as anti-pattern #4.
+
+**Three fixes, because one was not enough:**
+
+1. `writer.preflight()` writes and deletes a probe object at startup. An unwritable sink now
+   refuses to boot, naming the fix (`MINUANO_UID=$(id -u) MINUANO_GID=$(id -g)`), instead of
+   being discovered after traffic has been accepted.
+2. `flush()` puts a failed batch **back** into the buffer instead of dropping it, so a transient
+   object-store error costs a retry rather than the events. This bug existed independently of
+   permissions and would have bitten on the first S3 blip.
+3. `docker-compose.yml` takes `MINUANO_UID`/`MINUANO_GID`, and shutdown logs at `error` level with
+   the remaining count when the buffer is not empty. `/healthz` reports `degraded` plus
+   `last_error`.
+
+**Taught:** the gap register was right, and writing it down is what made the fix a five-minute job
+instead of a mystery. A platform you have not run on is not a small gap — CI on a second OS found
+a data-loss bug on its first execution.
+
 ## TRAP-10 — An inferred schema disappears when the data is sparse
 
 **Date:** 2026-07-27 · **Status:** FIXED

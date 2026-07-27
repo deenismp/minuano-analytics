@@ -45,6 +45,10 @@ class BufferedNDJSONWriter:
         protocols = self._fs.protocol if isinstance(self._fs.protocol, tuple) else (self._fs.protocol,)
         self._is_local = "file" in protocols or "local" in protocols
 
+        # Set when a flush fails, so the failure is visible on /healthz instead of only in a log
+        # line someone has to be watching for.
+        self.last_error: str | None = None
+
     @property
     def location(self) -> str:
         return f"{self._fs.protocol if isinstance(self._fs.protocol, str) else self._fs.protocol[0]}://{self._root}"
@@ -52,6 +56,28 @@ class BufferedNDJSONWriter:
     @property
     def buffered(self) -> int:
         return sum(len(lines) for lines in self._buffer.values())
+
+    def preflight(self) -> None:
+        """Prove the sink is writable before accepting a single event.
+
+        Without this, an unwritable sink is discovered at the first flush -- by which time the
+        collector has already answered 2xx to real traffic that it is about to lose. The most
+        common cause is the boring one: on Linux a bind-mounted host directory is owned by the
+        host user, and this container deliberately runs as an unprivileged uid.
+        """
+        probe = f"{self._root}/.minuano-writable-{self._instance_id}"
+        try:
+            if self._is_local:
+                self._fs.makedirs(self._root, exist_ok=True)
+            with self._fs.open(probe, "wb") as handle:
+                handle.write(b"ok\n")
+            self._fs.rm(probe)
+        except Exception as exc:
+            raise RuntimeError(
+                f"sink {self.location} is not writable: {type(exc).__name__}: {exc}\n"
+                "If this is a bind mount on Linux, the container's uid does not own the host "
+                "directory. Run with: MINUANO_UID=$(id -u) MINUANO_GID=$(id -g) docker compose up"
+            ) from exc
 
     def _key(self, stream: str, dt: str, seq: int) -> str:
         return f"{stream}/dt={dt}/{self._instance_id}-{seq:06d}.ndjson"
@@ -81,7 +107,13 @@ class BufferedNDJSONWriter:
             await self.flush()
 
     async def flush(self) -> list[str]:
-        """Write every buffered partition as its own object. Returns the paths written."""
+        """Write every buffered partition as its own object. Returns the paths written.
+
+        A batch that fails to write goes **back** into the buffer rather than being dropped, so a
+        transient object-store error costs a retry instead of the events. Taking the buffer and
+        then losing it on an exception is the same silent-loss failure the collector's never-reject
+        rule exists to prevent.
+        """
         async with self._lock:
             if not self._buffer:
                 return []
@@ -89,11 +121,21 @@ class BufferedNDJSONWriter:
             start_seq = self._seq
             self._seq += len(pending)
 
-        written = []
+        written: list[str] = []
+        failed: dict[tuple[str, str], list[str]] = {}
         for offset, ((stream, dt), lines) in enumerate(sorted(pending.items())):
             body = "\n".join(lines) + "\n"
-            # fsspec's filesystems are synchronous; keep the event loop free while one PUT runs.
-            written.append(await asyncio.to_thread(self._put, stream, dt, start_seq + offset, body))
+            try:
+                # fsspec's filesystems are synchronous; keep the event loop free during a PUT.
+                written.append(await asyncio.to_thread(self._put, stream, dt, start_seq + offset, body))
+            except Exception as exc:
+                failed[(stream, dt)] = lines
+                self.last_error = f"{type(exc).__name__}: {exc}"
+
+        if failed:
+            async with self._lock:
+                for key, lines in failed.items():
+                    self._buffer[key] = lines + self._buffer[key]
         return written
 
     async def start(self) -> None:
