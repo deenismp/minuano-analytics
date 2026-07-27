@@ -13,6 +13,7 @@ The same SQL is meant to run on Athena once the S3 sink is in use -- only the pa
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import duckdb
@@ -24,18 +25,32 @@ SQL_DIR = ROOT / "sql"
 SQL_FILES = ("events.sql", "channels.sql", "sessions.sql")
 
 
-def connect(data_dir: Path) -> duckdb.DuckDBPyConnection:
-    data_dir = Path(data_dir)
+def connect(location: str | Path) -> duckdb.DuckDBPyConnection:
+    """`location` is the sink: a local path, or the same URI the collector writes to.
+
+    Cloud URIs are handed to DuckDB as-is, which needs its own extension for the scheme
+    (`httpfs` for s3/gs, `azure` for az) and its own credentials. That path is untested --
+    see validation/README.md.
+    """
+    root = str(location)
+    if root.startswith("file://"):
+        root = root[len("file://"):]
+    root = root.rstrip("/")
+    is_local = "://" not in root
+
     con = duckdb.connect()
-    con.execute(f"SET VARIABLE events_glob = '{data_dir}/events/dt=*/*.ndjson'")
-    con.execute(f"SET VARIABLE bad_glob = '{data_dir}/bad/dt=*/*.ndjson'")
+    con.execute(f"SET VARIABLE events_glob = '{root}/events/dt=*/*.ndjson'")
+    con.execute(f"SET VARIABLE bad_glob = '{root}/bad/dt=*/*.ndjson'")
     for name in SQL_FILES:
         con.execute((SQL_DIR / name).read_text(encoding="utf-8"))
 
     # DuckDB resolves a glob when the view is created, and a pattern matching no files is an
     # error -- so on a run with no rejected events, `bad_events` is simply not defined.
-    if any((data_dir / "bad").rglob("*.ndjson")):
-        con.execute((SQL_DIR / "bad_events.sql").read_text(encoding="utf-8"))
+    if not is_local or any((Path(root) / "bad").rglob("*.ndjson")):
+        try:
+            con.execute((SQL_DIR / "bad_events.sql").read_text(encoding="utf-8"))
+        except duckdb.Error:
+            pass  # no rejected events to read
     return con
 
 
@@ -48,8 +63,9 @@ def show(con: duckdb.DuckDBPyConnection, title: str, sql: str) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", default=str(ROOT / "data"), type=Path)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--data-dir", default=os.getenv("MINUANO_SINK_URI") or str(ROOT / "data"),
+                        help="local path or sink URI (default: $MINUANO_SINK_URI, else ./data)")
     args = parser.parse_args()
 
     con = connect(args.data_dir)

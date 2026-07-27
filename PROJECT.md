@@ -1,7 +1,7 @@
 # minuano — what exists now, and why it is that way
 
 **Updated:** 2026-07-27
-**Status:** increment 1 in progress
+**Status:** increments 1–4 complete; runs end to end from `docker compose`, 110 checks passing
 **Repo:** `github.com/deenismp/minuano-analytics` (local directory is still `open-tracking` — rename pending)
 
 > Every delivery updates this file. A delivery is not done until the component row, the status,
@@ -15,18 +15,18 @@
 |---|---|---|---|
 | Event contract | `schema/event.v0.json` | ✅ committed | JSON Schema draft 2020-12, version `0` |
 | Working agreement | `CLAUDE.md` | ✅ committed | invariants live here |
-| Increment 1 spec | `docs/spec-increment-1.md` | ✅ committed | checkboxes tracked in-file |
+| Specs | `docs/spec-increment-{1,2,3,4}.md` | ✅ committed | checkboxes tracked in-file |
 | Collector | `collector/` | ✅ increment 1 | FastAPI, local writer, non-lossy. 22/22 checks |
-| Validation harness | `validation/` | ✅ increment 1 | 3 runners, 52 checks total, all passing |
+| Validation harness | `validation/` | ✅ increment 4 | 6 runners, 110 checks, all passing |
 | Browser snippet | `snippet/minuano.js` | ✅ increment 1 | zero deps; 2838 min / 1530 gzip / 1296 brotli |
 | Demo page | `demo/demo.html` | ✅ increment 1 | local end-to-end loop |
 | GTM install doc | `docs/install-gtm.md` | ✅ increment 1 | Custom HTML tag + custom-event tag |
-| S3 writer | `collector/writer.py` | ✅ increment 2 | sink parity proved with a stub client; **never talked to AWS** |
-| Container | `Dockerfile`, `docker-compose.yml` | ✅ increment 2 | non-root, healthcheck, SIGTERM drain proved to a host volume |
+| Sink | `collector/writer.py` | ✅ increment 4 | one writer, one URI: `file://` `s3://` `gs://` `az://`. **No cloud has been written to** |
+| Container | `Dockerfile`, `docker-compose.yml` | ✅ increment 4 | non-root, healthcheck, SIGTERM drain proved; profiles for demo and analytics |
 | Query layer | `sql/`, `analytics/run.py` | ✅ increment 3 | DuckDB over the NDJSON in place; SQL written to port to Athena |
 | Sessions | `sql/sessions.sql` | ✅ increment 3 | attribution at session start; 30-min re-derivation as a DQ test |
 | Channel grouping | `sql/channels.sql` | ✅ increment 3 | the reference platform default channel group, ordered CASE, rules from Google's doc |
-| Athena | — | ⬜ blocked | needs the S3 sink pointed at a real bucket; the SQL is written for it |
+| Athena | — | ⬜ blocked | needs the sink pointed at a real bucket; the SQL is written for it |
 | Reference pack | `refs/refs.md` | ✅ committed | pre-existing research |
 
 ## Glossary
@@ -39,7 +39,8 @@
 | **last touch** | the most recent non-empty campaign values observed, persisted in a cookie |
 | **ingest date** | UTC date of `ingested_at`; the partition key. Not the event date |
 | **instance id** | random id generated at collector boot; makes output filenames unique per container |
-| **increment** | one shippable slice with its own spec file; increments 1–3 make up v0 |
+| **increment** | one shippable slice with its own spec file |
+| **sink** | where events land, named by one URI; `file://`, `s3://`, `gs://` or `az://` |
 
 ## Decision log
 
@@ -62,6 +63,9 @@
 | 2026-07-27 | **Session attribution is taken at session start, via `arg_min` on the event timestamp.**<br>*Why + alternatives rejected:* the reference platform — "the `session_start` event carries the information that determines the attribution of the session, such as the gclid, UTM parameters, and referrer." Rejected `arg_max`: it re-attributes a session to whatever the visitor clicked most recently, which is wrong in precisely the case attribution is being asked about.<br>*Verified by:* the fixture where visitor A's second session opens on `/checkout` with no UTMs on the URL and still carries `google/cpc` from the cookie.<br>*Provenance:* the reference platform sessions doc; main thread. |
 | 2026-07-27 | **Sessions are re-derived from the 30-minute gap as a data-quality test, not as the source of truth.**<br>*Why + alternatives rejected:* the client assigns `session_id` and knows things the warehouse cannot (a tab left open, a cleared cookie). An independent re-derivation that disagrees is the signal that the snippet's cookie logic has broken — and with no browser in the loop, it is the only end-to-end check on that logic that exists. Rejected server-side-only derivation: throws away the client signal, and every relayed or server-side event would fabricate its own session.<br>*Provenance:* main thread. |
 | 2026-07-27 | **Channel-grouping rules transcribed from Google's documentation, not written from memory.**<br>*Why + alternatives rejected:* cross-platform channel modeling is the project's entire differentiator, and a classifier that is subtly wrong is worse than none because it looks right. The ordered CASE is load-bearing: `cpm` matches both the paid-medium regex `^(.*cp.*\|ppc\|retargeting\|paid.*)$` and the Display rule, and is Display only because the paid branches require a search or social source and are tested first.<br>*Known approximations:* the search/social source lists are a seed list, not the reference platform's managed one; Google Ads-metadata-driven channels cannot be reproduced from UTMs.<br>*Verified by:* nine fixture sessions, one per branch, none falling through to Unassigned.<br>*Provenance:* the platform's channel-group documentation, fetched 2026-07-27. |
+
+| 2026-07-27 | **One `MINUANO_SINK_URI` over fsspec, not three cloud SDKs.**<br>*Why + alternatives rejected:* Denis asked for AWS, GCP and Azure. Three native writers would mean three heavy dependencies and three code paths to keep in sync, buying error handling that one small PUT per flush does not need. fsspec makes local disk and all three clouds *one* code path — this increment deleted more code than it added — and each backend brings its own cloud's credential chain, so instance roles, workload identity and managed identity work without minuano configuring anything. Extras (`aws`/`gcp`/`azure`) keep the base image free of any cloud SDK. Rejected **S3-compatible + endpoint override**: 4 lines and zero dependencies, but Azure Blob has no S3-compatible API, so it answers two clouds of three. Also rejected keeping `MINUANO_SINK`/`S3_BUCKET`/`S3_PREFIX`/`DATA_DIR` as aliases — four knobs for one destination, able to disagree.<br>*Verified by:* `check_sink` 11/11, including byte parity between `file://` and `memory://` (which is not the local branch, so it exercises the object-store path).<br>*Provenance:* main thread, 2026-07-27. |
+| 2026-07-27 | **The events view declares its schema instead of inferring it.**<br>*Why + alternatives rejected:* found by a failing container check — a dataset whose only event carried no `page` object produced no `page` column, and every downstream query failed to compile. That is what a server-side-only or freshly-started deployment looks like. Declaring the columns in `read_json` also stops types drifting between runs as data changes. Rejected `union_by_name`: it reconciles columns *across* files and does nothing when no file has the field.<br>*Verified by:* `check_container` 19/19 after the fix, `check_analytics` still 28/28.<br>*Provenance:* main thread, 2026-07-27. |
 
 ## Known deltas for schema v1
 

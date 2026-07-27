@@ -40,7 +40,7 @@ def main() -> int:
         for path in sorted(DATA_DIR.rglob("*"), reverse=True):
             path.unlink() if path.is_file() else path.rmdir()
 
-    env = {**os.environ, "MINUANO_DATA_DIR": str(DATA_DIR),
+    env = {**os.environ, "MINUANO_SINK_URI": f"file://{DATA_DIR}",
            "MINUANO_FLUSH_MAX_EVENTS": "10000", "MINUANO_FLUSH_MAX_SECONDS": "3600",
            "MINUANO_INSTANCE_ID": "snippetrun01"}
     proc = subprocess.Popen(

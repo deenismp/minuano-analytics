@@ -6,24 +6,31 @@ COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /bin/uv
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
+# Which cloud backends to bake in. Space-separated, from: aws gcp azure.
+#   docker compose build --build-arg MINUANO_EXTRAS="aws"
+# Empty by default, so the image carries no cloud SDK unless one is asked for.
+ARG MINUANO_EXTRAS=""
+
 # Dependencies first, so a source-only change does not reinstall them.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project
+RUN uv sync --frozen --no-install-project $(for extra in $MINUANO_EXTRAS; do echo --extra $extra; done)
 
 COPY collector/ ./collector/
 COPY schema/ ./schema/
-RUN uv sync --frozen
+COPY sql/ ./sql/
+COPY analytics/ ./analytics/
+RUN uv sync --frozen $(for extra in $MINUANO_EXTRAS; do echo --extra $extra; done)
 
 
 # Runtime stage -- no build toolchain, no uv, no package manager.
 FROM python:3.13-slim
 
-# Unbuffered so stdout logs reach the container runtime immediately, which matters when
-# the process is being SIGTERM'd and you want to see the drain line.
+# Unbuffered so stdout logs reach the container runtime immediately, which matters when the
+# process is being SIGTERM'd and you want to see the drain line.
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    MINUANO_DATA_DIR=/data
+    MINUANO_SINK_URI=file:///data
 
 RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin minuano \
     && mkdir -p /data && chown minuano:minuano /data

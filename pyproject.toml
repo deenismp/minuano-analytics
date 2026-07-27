@@ -12,9 +12,17 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.34",
     "jsonschema>=4.23",
-    "boto3>=1.35",       # increment 2, S3 sink. Imported lazily; the local path never loads it.
-    "duckdb>=1.5.5",  # increment 3, the local query layer. Reads the NDJSON in place; SQL ports to Athena.
+    "fsspec>=2025.1",  # increment 4, the sink. Local and every cloud become one code path.
+    "duckdb>=1.5.5",   # increment 3, the query layer. Reads the NDJSON in place; SQL ports to Athena.
 ]
+
+# One extra per cloud, so a base install carries no cloud SDK at all. The backends bring their
+# own credential chains -- instance roles, workload identity, managed identity -- which is the
+# reason not to write our own.
+[project.optional-dependencies]
+aws = ["s3fs>=2025.1"]      # s3://    -- also Cloudflare R2, MinIO, Backblaze, via endpoint config
+gcp = ["gcsfs>=2025.1"]     # gs://
+azure = ["adlfs>=2024.7"]   # az://    -- Azure Blob and ADLS Gen2
 
 [build-system]
 requires = ["hatchling"]

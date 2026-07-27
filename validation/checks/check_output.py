@@ -87,7 +87,7 @@ def main() -> int:
 
     env = {
         **os.environ,
-        "MINUANO_DATA_DIR": str(DATA_DIR),
+        "MINUANO_SINK_URI": f"file://{DATA_DIR}",
         "MINUANO_FLUSH_MAX_EVENTS": "10000",   # never trips
         "MINUANO_FLUSH_MAX_SECONDS": "3600",   # never trips
         "MINUANO_INSTANCE_ID": "testrun00001",

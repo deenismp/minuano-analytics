@@ -70,16 +70,26 @@ observable effect — the drain log line and the file on disk — not on the exi
 reading uvicorn's source rather than guessing, which is what turned a "bug" into a corrected test
 in one step.
 
-## TRAP-7 — The S3 writer has never spoken to AWS
+## TRAP-7 — No cloud has ever been written to
 
-**Date:** 2026-07-27 · **Status:** OPEN
+**Date:** 2026-07-27 · **Status:** OPEN (updated for the fsspec sink)
 
-`check_s3_writer` injects a recording stub, so key layout and byte content are proved and nothing
-else is. Credentials, IAM, bucket policy, region routing, throttling, retries, and same-key
-overwrite behaviour are all unexercised. The stub cannot fail the way AWS fails.
+`check_sink` proves the key layout and the bytes by comparing `file://` against `memory://`.
+`memory://` is genuinely not the local branch, so the object-store code path *is* exercised — but
+it cannot fail the way a cloud fails. Credentials, IAM, bucket policy, region routing, throttling,
+retries, and same-key overwrite behaviour are all unexercised, and `s3fs` / `gcsfs` / `adlfs` have
+never been imported here at all. Only the boot guard that reports them *missing* has been tested.
 
-**Do this before trusting the S3 sink:** run the collector against a real bucket with
-`MINUANO_SINK=s3`, post the fixture set, and confirm the objects and their contents in S3.
+**Do this before trusting any cloud sink**, once per cloud:
+
+```bash
+MINUANO_EXTRAS=aws MINUANO_SINK_URI=s3://<bucket>/raw docker compose up --build
+# post validation/cases/fixtures.json, then confirm the objects and their contents in the bucket
+```
+
+The DuckDB side is a *separate* untested path: `analytics/run.py` hands a cloud URI straight to
+DuckDB, which needs its own extension (`httpfs`, `azure`) and its own credentials. Writing to a
+cloud successfully says nothing about reading back from it.
 
 ## TRAP-8 — DuckDB resolves a glob when the view is CREATED, not when it is queried
 
@@ -109,6 +119,36 @@ No error, no warning, just a smaller number than the truth — the worst failure
 **Rule:** filter on `dt` to prune files, on `event_date` to answer a question. When the question is
 about `event_date`, pad `dt` by ±1 day (Boundary-File Padding). This is asserted in
 `check_analytics.py` so the tradeoff stays visible rather than becoming folklore.
+
+## TRAP-10 — An inferred schema disappears when the data is sparse
+
+**Date:** 2026-07-27 · **Status:** FIXED
+
+`sql/sessions.sql` failed to compile with `Binder Error: Referenced table "page" not found!` — not
+because the SQL was wrong, but because the dataset it ran against was a single minimal event with
+no `page` object. DuckDB's JSON inference builds columns from what is actually in the files, so a
+field no event carries simply does not exist, and every query referencing it fails.
+
+This is what a server-side-only deployment, or a freshly started one, looks like. It passed on the
+fixture dataset because those events happen to be rich.
+
+**Fix:** `sql/events.sql` declares its columns explicitly, mirroring `schema/event.v0.json`.
+Inference is convenient and non-deterministic; the schema is the contract, so read against it.
+
+**Taught:** a query that works on your test data and breaks on sparse data has not been tested,
+it has been flattered. `union_by_name` does not help — it reconciles columns *across* files and
+does nothing when no file has the field at all.
+
+## TRAP-11 — A test that never cleans its output directory passes exactly once
+
+**Date:** 2026-07-27 · **Status:** FIXED
+
+`check_container.py` asserted "nothing written before shutdown" and "exactly one event drained",
+against a host directory it never cleared. It passed on the first run and failed on every run
+after, reading the previous run's files.
+
+**Taught:** every harness here starts by deleting its own output directory. The bug is invisible
+on the run you write the test on, which is the run you trust most.
 
 ## TRAP-5 — Base64 GET payloads land in access logs and hit proxy length caps
 

@@ -58,8 +58,7 @@ def _now() -> str:
 async def lifespan(app: FastAPI):
     app.state.writer = make_writer(CFG)
     await app.state.writer.start()
-    log("info", "collector started", version=__version__, sink=CFG.sink,
-        destination=str(CFG.data_dir) if CFG.sink == "local" else f"s3://{CFG.s3_bucket}/{CFG.s3_prefix}",
+    log("info", "collector started", version=__version__, sink_uri=CFG.sink_uri, backend=CFG.scheme,
         flush_max_events=CFG.flush_max_events, flush_max_seconds=CFG.flush_max_seconds)
     yield
     # uvicorn turns SIGTERM into lifespan shutdown, so this is the SIGTERM flush.

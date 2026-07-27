@@ -1,22 +1,60 @@
-# Local development path: the collector in a container, writing NDJSON to a host directory.
-# No AWS involved. Switch to the S3 sink by setting MINUANO_SINK=s3 plus MINUANO_S3_BUCKET.
+# Everything runs from here. A clone needs Docker and nothing else -- no Python, no uv, no Node.
+#
+#   docker compose up                      collector on :8000, writing to ./data
+#   docker compose --profile demo up        + a static server on :8080 for demo/demo.html
+#   docker compose run --rm analytics       the report over whatever has been collected
+#   docker compose stop                     SIGTERM, which drains the buffer before exit
+#
+# Storage is one variable. Local by default; point it anywhere and mount the matching
+# credentials -- the cloud SDKs resolve them through their own chains, so nothing is baked in:
+#
+#   MINUANO_SINK_URI=s3://bucket/raw       docker compose build --build-arg MINUANO_EXTRAS=aws
+#   MINUANO_SINK_URI=gs://bucket/raw       ... MINUANO_EXTRAS=gcp
+#   MINUANO_SINK_URI=az://container/raw    ... MINUANO_EXTRAS=azure
+
+x-image: &image
+  build:
+    context: .
+    args:
+      MINUANO_EXTRAS: "${MINUANO_EXTRAS:-}"
+  image: minuano/collector:dev
+
 services:
   collector:
-    build: .
-    image: minuano/collector:dev
+    <<: *image
     ports:
       - "${MINUANO_PORT:-8000}:8000"
     environment:
-      MINUANO_SINK: "${MINUANO_SINK:-local}"
-      MINUANO_DATA_DIR: /data
+      MINUANO_SINK_URI: "${MINUANO_SINK_URI:-file:///data}"
       MINUANO_FLUSH_MAX_EVENTS: "${MINUANO_FLUSH_MAX_EVENTS:-100}"
       MINUANO_FLUSH_MAX_SECONDS: "${MINUANO_FLUSH_MAX_SECONDS:-5}"
       MINUANO_CORS_ORIGINS: "${MINUANO_CORS_ORIGINS:-*}"
-      # Only read when MINUANO_SINK=s3; the collector refuses to boot without a bucket.
-      MINUANO_S3_BUCKET: "${MINUANO_S3_BUCKET:-}"
-      MINUANO_S3_PREFIX: "${MINUANO_S3_PREFIX:-raw}"
     volumes:
       - ${MINUANO_HOST_DATA:-./data}:/data
+      # Cloud credentials by mount, never in the image. Harmless when the paths do not exist.
+      - ${HOME}/.aws:/home/minuano/.aws:ro
+      - ${HOME}/.config/gcloud:/home/minuano/.config/gcloud:ro
     # Long enough for the buffer to drain before docker escalates to SIGKILL.
     stop_grace_period: 20s
+    restart: unless-stopped
+
+  # The report. One-shot: `docker compose run --rm analytics`.
+  analytics:
+    <<: *image
+    profiles: ["analytics"]
+    entrypoint: ["python", "analytics/run.py", "--data-dir", "/data"]
+    volumes:
+      - ${MINUANO_HOST_DATA:-./data}:/data:ro
+    restart: "no"
+
+  # Serves demo/demo.html and snippet/minuano.js so the whole loop can be driven from a browser.
+  # Deliberately not the collector image: demo assets have no business being in a deployable one.
+  demo:
+    image: python:3.13-slim
+    profiles: ["demo"]
+    command: ["python", "-m", "http.server", "8080", "--directory", "/site"]
+    ports:
+      - "${MINUANO_DEMO_PORT:-8080}:8080"
+    volumes:
+      - ./:/site:ro
     restart: unless-stopped

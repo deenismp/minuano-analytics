@@ -42,7 +42,7 @@ def collect_fixtures() -> None:
     if DATA_DIR.exists():
         shutil.rmtree(DATA_DIR)
 
-    env = {**os.environ, "MINUANO_DATA_DIR": str(DATA_DIR), "MINUANO_INSTANCE_ID": "analytics001",
+    env = {**os.environ, "MINUANO_SINK_URI": f"file://{DATA_DIR}", "MINUANO_INSTANCE_ID": "analytics001",
            "MINUANO_FLUSH_MAX_EVENTS": "10000", "MINUANO_FLUSH_MAX_SECONDS": "3600"}
     proc = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "collector.app:app", "--port", PORT, "--log-level", "warning"],

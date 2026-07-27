@@ -71,6 +71,12 @@ def lines_in(directory: Path) -> list[dict]:
 
 
 def container_checks() -> None:
+    # Start from an empty volume. Without this the "still buffered" and drain checks pass on a
+    # first run and fail on every one after it, reading the previous run's files.
+    if HOST_DATA.exists():
+        shutil.rmtree(HOST_DATA)
+    HOST_DATA.mkdir(parents=True)
+
     env = {"MINUANO_HOST_DATA": str(HOST_DATA), "MINUANO_PORT": PORT,
            "MINUANO_FLUSH_MAX_EVENTS": "10000", "MINUANO_FLUSH_MAX_SECONDS": "3600"}
 
@@ -121,8 +127,36 @@ def container_checks() -> None:
         whoami = compose("run", "--rm", "--entrypoint", "id", "collector", "-un", env=env)
         check(whoami.stdout.strip().endswith("minuano"), "container runs as a non-root user",
               f"id -un -> {whoami.stdout.strip()!r}")
+
+        # --- the analytics profile, over what the collector just wrote ---------------------
+        report = compose("run", "--rm", "analytics", env=env)
+        check(report.returncode == 0 and "sessions by channel" in report.stdout,
+              "`docker compose run --rm analytics` reports over the collected data",
+              next((l for l in report.stdout.splitlines() if "│" in l and "Direct" in l),
+                   report.stdout.strip().splitlines()[-1] if report.stdout.strip() else report.stderr[-200:]))
+        check("events" in report.stdout and "visitors" in report.stdout,
+              "the report runs the same SQL in the container as on the host")
+
+        # --- the demo profile ---------------------------------------------------------------
+        demo_up = compose("--profile", "demo", "up", "-d", "demo", env=env)
+        check(demo_up.returncode == 0, "demo profile starts",
+              demo_up.stderr.strip().splitlines()[-1] if demo_up.stderr else "")
+        served = {}
+        for path in ("/demo/demo.html", "/snippet/minuano.js"):
+            deadline = time.time() + 30
+            while time.time() < deadline:
+                try:
+                    with urllib.request.urlopen(f"http://127.0.0.1:8080{path}", timeout=5) as resp:
+                        served[path] = resp.read().decode("utf-8", "replace")
+                    break
+                except OSError:
+                    time.sleep(1)
+        check("minuano" in served.get("/demo/demo.html", ""), "demo page is served",
+              f"{len(served.get('/demo/demo.html', ''))} bytes")
+        check("minuano.track" in served.get("/snippet/minuano.js", ""), "snippet is served",
+              f"{len(served.get('/snippet/minuano.js', ''))} bytes")
     finally:
-        compose("down", "-v", env=env)
+        compose("--profile", "demo", "--profile", "analytics", "down", "-v", env=env)
 
 
 def concurrency_checks() -> None:
@@ -132,7 +166,7 @@ def concurrency_checks() -> None:
 
     procs = []
     for i, port in enumerate(("8792", "8793")):
-        env = {**os.environ, "MINUANO_DATA_DIR": str(CONCURRENCY_DATA),
+        env = {**os.environ, "MINUANO_SINK_URI": f"file://{CONCURRENCY_DATA}",
                "MINUANO_INSTANCE_ID": f"instance{i}xxxx",
                "MINUANO_FLUSH_MAX_EVENTS": "10000", "MINUANO_FLUSH_MAX_SECONDS": "3600"}
         procs.append((port, subprocess.Popen(

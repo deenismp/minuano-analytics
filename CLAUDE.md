@@ -21,7 +21,7 @@ Copied deliberately from the reference platform's model.
 1. **Every row is an event, not a session.** Sessions are derived downstream.
 2. **Collection does no enrichment.** the reference platform leaves `traffic_source` empty in its intraday streaming
    tables and resolves attribution in a later processing pass. The collector stores raw UTMs
-   exactly as observed; channel grouping happens in a batch job that does not exist yet.
+   exactly as observed; channel grouping happens in the batch pass in `sql/`, never at collect.
 3. **Event parameters are flat, one level, capped.** Nested objects wreck Athena queries.
 
 ## Invariants — do not break these without a decision-log entry in `PROJECT.md`
@@ -35,6 +35,8 @@ Copied deliberately from the reference platform's model.
 - **The collector never rejects an event.** It always returns 2xx. Valid events land in
   `data/events/dt=…`, invalid ones in `data/bad/dt=…` with the validation errors attached to the
   original payload. A dropped event is unanswerable forever.
+- **Storage is one URI (`MINUANO_SINK_URI`), one writer, any backend.** Do not add a
+  per-cloud writer or a second storage variable; fsspec is the abstraction and it is enough.
 - **Raw is append-only, partitioned by ingest date.** Never reorganize a closed partition. A
   skewed client clock must not be able to write into a past day. Downstream jobs pad ±1 day.
 - **`params` values matching `token$` / `apikey` / `sessionid` are replaced with `<REDACTED>`,
@@ -57,23 +59,27 @@ Web only. No mobile SDKs. No dashboard. No auth. No database.
    `anonymous_id` and `session_id`, fires `page_view`, exposes `minuano.track()`. Under 2KB
    minified, zero dependencies. **Cookies, not localStorage**, because GTM sandboxed templates can
    read and write cookies — one storage model across both install methods.
-3. Local dev path — collector writes to a local directory instead of S3.
+3. Local dev path — the collector writes to a local directory by default; the same code path
+   reaches S3, GCS or Azure Blob by changing `MINUANO_SINK_URI`.
 4. `docs/install-gtm.md` — copy-paste GTM Custom HTML tag. Documentation only, no template code.
 
 Container basics: stateless, config via env vars only, logs to stdout, `/healthz`, flush buffered
 events on SIGTERM, unique object keys per instance so two containers never overwrite each other.
 
-**Explicitly out of scope for v0:** campaign enrichment or channel grouping, a real GTM Custom
-Template for the Community Gallery, a server-side GTM tag template, session stitching, identity
-resolution, any UI or dashboard, any deployment manifests (ECS task definitions, Kubernetes, Helm).
+**Explicitly out of scope:** a real GTM Custom Template for the Community Gallery, a server-side
+GTM tag template, session stitching, identity resolution, any UI or dashboard, any deployment
+manifests (ECS task definitions, Kubernetes, Helm).
 
-The dashboard is step 5, not step 1. It does not get built until real data has been sitting in S3
-for a week and been queried with Athena.
+The dashboard is last, not first. It does not get built until real data has been sitting in
+storage for a week and been queried. Postgres is the right serving store for it when that day
+comes — it is not the right store for querying raw events, and that distinction is why DuckDB is
+in `sql/` and Postgres is nowhere.
 
 ## How to work here
 
-- **Ask before adding any dependency.** Current set: `fastapi`, `uvicorn`, `jsonschema`. `boto3`
-  arrives with the S3 writer in increment 2. The snippet has zero dependencies, permanently.
+- **Ask before adding any dependency.** Current set: `fastapi`, `uvicorn`, `jsonschema`, `fsspec`,
+  `duckdb`. Cloud backends are extras, never base deps: `aws` → `s3fs`, `gcp` → `gcsfs`,
+  `azure` → `adlfs`. The snippet has zero dependencies, permanently.
 - **No abstraction layers, plugin systems, or config frameworks** until a second implementation
   actually needs one. Custom events need no machinery — `event_name` + `params` in the schema are
   already the extension point.

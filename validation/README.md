@@ -14,12 +14,12 @@ output/     evidence from the last run (gitignored)
 uv run validation/checks/check_schema.py     # the contract accepts and rejects what it should
 uv run validation/checks/check_output.py     # what the collector actually wrote to disk
 uv run validation/checks/check_snippet.py    # what the snippet actually sends (needs node)
-uv run validation/checks/check_s3_writer.py  # S3 key layout and sink parity (no AWS needed)
+uv run validation/checks/check_sink.py       # sink parity across backends (no cloud needed)
 uv run validation/checks/check_container.py  # the container, and two instances on one prefix (needs docker)
 uv run validation/checks/check_analytics.py  # sessions and channel grouping over collected events
 ```
 
-95 checks total: 14 + 22 + 16 + 11 + 14 + 28.
+110 checks total: 14 + 22 + 16 + 11 + 19 + 28.
 
 Each writes its console output to `validation/output/step*-*.txt`. All three exit non-zero on
 failure, so they compose into a pre-commit or CI step later.
@@ -31,8 +31,8 @@ failure, so they compose into a pre-commit or CI step later.
 | `check_schema` | every fixture in `cases/fixtures.json` validates or fails as hand-authored; secret-shaped `params` values are replaced while their keys survive |
 | `check_output` | rows in == rows on disk; good lines are schema-valid; `ingested_at` overwrote the client's value; `dt=` matches the UTC date of `ingested_at`; bad rows carry both their errors and the original payload; a cross-origin `text/plain` POST is accepted; a payload-supplied `user_agent` is not replaced by the socket's; the buffer drains on SIGTERM |
 | `check_snippet` | UTMs are read from the URL and persisted to a page without them; the first event of a new visitor is `first_touch` and the rest are `last_touch`; `anonymous_id` survives a session boundary; 31 minutes of inactivity starts a new `session_id`; a `track()` call made before load still lands; a nested param is dropped and the valid ones kept |
-| `check_s3_writer` | the S3 key layout matches the local path layout exactly; one `put_object` per (stream, partition) per flush; no key is reused across flushes; both sinks emit byte-identical NDJSON; `MINUANO_SINK=s3` without a bucket, and an unknown sink, both fail at boot rather than at first flush |
-| `check_container` | the image builds and runs as a non-root user; the container's own `HEALTHCHECK` reports healthy; `docker compose stop` drains the buffer to the host volume; logs are one JSON object per line on stdout; **two instances writing to one prefix lose nothing and do not overwrite each other** |
+| `check_sink` | `file://` and `memory://` produce byte-identical objects at identical keys — and `memory://` is not the local branch, so the object-store code path is exercised with no cloud SDK; one object per (stream, partition) per flush; no key reused; a URI whose backend is missing fails at boot **naming the extra to install**; an unknown scheme fails at boot |
+| `check_container` | the image builds and runs as a non-root user; the container's own `HEALTHCHECK` reports healthy; `docker compose stop` drains the buffer to the host volume; logs are one JSON object per line on stdout; `docker compose run --rm analytics` runs the same SQL in the container as on the host; the demo profile serves the page and the snippet; **two instances writing to one prefix lose nothing and do not overwrite each other** |
 | `check_analytics` | every collected event is visible to the query layer; three event-dates land in one ingest partition and filtering on `dt` for a past event-date returns 0 rows while `event_date` returns 3; sessions match the hand-authored shape; **attribution comes from the session's first event, not its last**; sessions re-derived from the 30-minute gap match the client's count; all nine fixture sessions classify into the expected the reference platform channel with none falling through to Unassigned |
 
 The expectations live in `cases/fixtures.json` and are hand-written. They are never generated
@@ -46,10 +46,14 @@ proves nothing.
   script-written cookies, subdomain scoping — are not exercised. Neither is a real
   `navigator.sendBeacon`, only a stand-in with the same contract. **Open the demo page in a real
   browser before trusting any of it.**
-- **The S3 writer has never talked to AWS.** `check_s3_writer` injects a recording stub, so the key
-  layout and the bytes are proved but nothing else is: not credentials, not IAM, not bucket
-  policies, not region routing, not throttling or retry behaviour, not what `put_object` does when
-  the key already exists. **A real-bucket run is required before the S3 sink is trusted.**
+- **No cloud has ever been written to.** `memory://` exercises the object-store branch, but it
+  cannot fail the way a cloud fails: credentials, IAM, bucket policies, region routing, throttling,
+  retries, and what a PUT does when the key already exists are all unexercised. `s3fs` / `gcsfs` /
+  `adlfs` have never even been imported here — only the boot guard that reports them missing has
+  been tested. **A real-bucket run per cloud is required before any of the three is trusted.**
+- **DuckDB has only ever read local files.** `analytics/run.py` accepts a cloud URI and hands it
+  straight to DuckDB, which needs its own extension (`httpfs`, `azure`) and its own credentials —
+  a completely separate path from the writer's, sharing only the URI string. Untested.
 - **No load.** Buffer behaviour under sustained traffic, and what a flush costs at volume, is
   unmeasured. Concurrency is proved for two instances at six events, which is a collision test,
   not a load test.
@@ -71,7 +75,5 @@ proves nothing.
   that "ports cleanly" is a claim, not a result, until it runs there.
 - **Nine sessions is not a dataset.** Nothing here says anything about query cost, partition
   pruning at volume, or whether the ±1 day boundary padding is sufficient in practice.
-- **Nothing about Athena.** Whether this NDJSON layout is actually queryable and cheap is the
-  question increment 3 answers. It is the first real test of the partition-by-ingest-date decision.
 - **Timezones.** Every fixture lands on one UTC day. A run crossing midnight UTC, or a client with
   a badly skewed clock, is not covered.

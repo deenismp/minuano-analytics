@@ -5,10 +5,10 @@ Android, and iOS.
 
 *Minuano* is the cold wind that crosses the pampa in southern Brazil after a front passes.
 
-> **Status: pre-alpha.** v0 runs end to end locally — collector, browser snippet, container, and a
-> query layer that derives sessions and the reference platform channel groups. Nothing here has served production
-> traffic, the S3 sink has never talked to AWS, and the event schema is version `0`, which means it
-> can change.
+> **Status: pre-alpha.** v0 runs end to end from `docker compose` — collector, browser snippet, a
+> sink that reaches AWS, GCP or Azure through one URI, and a query layer that derives sessions and
+> the reference platform channel groups. Nothing here has served production traffic, no cloud backend has actually
+> been written to, and the event schema is version `0`, which means it can change.
 
 ## Why
 
@@ -45,76 +45,97 @@ Two consequences worth stating up front:
 
 ## Quick start
 
+Docker is the only prerequisite — no Python, no uv, no Node on the host.
+
 ```bash
-uv sync
-
-# terminal 1 -- the collector, writing to ./data
-uv run uvicorn collector.app:app --reload
-
-# terminal 2 -- serve the demo page
-python3 -m http.server 8080
-
+docker compose --profile demo up --build
 open "http://localhost:8080/demo/demo.html?utm_source=newsletter&utm_medium=email"
 ```
 
-Click a button on the demo page, then look in `data/events/dt=<today>/`. Anything that failed
-validation is in `data/bad/` with its errors attached — nothing is ever dropped.
-
-Or in a container, which is the same collector writing to a mounted `./data`:
+Click the buttons on the demo page, then read the events back:
 
 ```bash
-docker compose up --build
-curl -X POST localhost:8000/collect -d '{"schema_version":"0","event_name":"page_view",
-  "event_timestamp":"2026-07-27T12:00:00Z","anonymous_id":"anon_00000001","session_id":"1785500000"}'
-docker compose stop     # SIGTERM drains the buffer to ./data before the container exits
+docker compose run --rm analytics     # sessions, channels, data-quality
+docker compose stop                   # SIGTERM drains the buffer before the container exits
 ```
 
-To write to S3 instead, set `MINUANO_SINK=s3` and `MINUANO_S3_BUCKET`; the collector refuses to
-boot without a bucket rather than discovering it at the first flush. Both sinks emit byte-identical
-NDJSON under the same key layout, so a reader does not care which one produced it:
+Raw events land in `./data/events/dt=<today>/`. Anything that failed validation is in
+`./data/bad/` with its errors attached — nothing is ever dropped.
+
+<details>
+<summary>Running it without Docker</summary>
+
+```bash
+uv sync
+uv run uvicorn collector.app:app --reload      # terminal 1
+python3 -m http.server 8080                     # terminal 2
+uv run analytics/run.py
+```
+</details>
+
+## Storage — one URI, any cloud
+
+Where events go is a single variable, and its scheme picks the backend:
+
+| `MINUANO_SINK_URI` | Backend | Needs |
+|---|---|---|
+| `file:///data` | local disk (default) | nothing |
+| `s3://bucket/raw` | AWS S3, and anything S3-compatible | `MINUANO_EXTRAS=aws` |
+| `gs://bucket/raw` | Google Cloud Storage | `MINUANO_EXTRAS=gcp` |
+| `az://container/raw` | Azure Blob / ADLS Gen2 | `MINUANO_EXTRAS=azure` |
+
+```bash
+MINUANO_EXTRAS=aws MINUANO_SINK_URI=s3://my-bucket/raw docker compose up --build
+```
+
+There is one writer. `fsspec` resolves every scheme to the same interface, so local disk and three
+clouds are one code path — and the base image carries no cloud SDK at all until an extra asks for
+one. Credentials are never configured by minuano: each backend uses its own cloud's chain, so
+instance roles, workload identity and managed identity all work as intended. A URI whose backend
+is not installed fails at **boot**, naming the extra to install, rather than at the first flush
+after events have already been buffered.
+
+The layout is identical on every backend, so a reader never has to care which produced it:
 
 ```
-<root>/<events|bad>/dt=YYYY-MM-DD/<instance_id>-<seq>.ndjson
+<sink>/<events|bad>/dt=YYYY-MM-DD/<instance_id>-<seq>.ndjson
 ```
 
 `dt` is the **ingest** date, not the event date — a closed partition is never reorganised, and a
 skewed client clock cannot write into a past day. Downstream jobs should pad ±1 day.
 
-Configuration is environment variables only:
+Everything else is environment variables too:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `MINUANO_SINK` | `local` | `local` or `s3` |
-| `MINUANO_DATA_DIR` | `./data` | where NDJSON lands, local sink only |
-| `MINUANO_S3_BUCKET` | — | required when `MINUANO_SINK=s3`; checked at boot |
-| `MINUANO_S3_PREFIX` | `raw` | key prefix inside the bucket |
+| `MINUANO_SINK_URI` | `file://./data` | where events land; the scheme picks the backend |
 | `MINUANO_FLUSH_MAX_EVENTS` | `100` | flush when this many events are buffered |
 | `MINUANO_FLUSH_MAX_SECONDS` | `5` | flush at least this often |
 | `MINUANO_MAX_BODY_BYTES` | `1048576` | larger bodies get the one and only 4xx |
 | `MINUANO_CORS_ORIGINS` | `*` | comma-separated; set this in production |
-| `MINUANO_INSTANCE_ID` | random | appears in every filename, so instances never collide |
+| `MINUANO_INSTANCE_ID` | random | appears in every object name, so instances never collide |
 
 ### Querying what you collected
 
 ```bash
-uv run analytics/run.py                      # over ./data
-uv run analytics/run.py --data-dir <path>
+docker compose run --rm analytics            # over the collected data
+uv run analytics/run.py --data-dir <path>    # or on the host
 ```
 
 DuckDB reads the NDJSON where it sits — no load step, no service, views recreated on every run.
 The SQL in [`sql/`](sql/) derives the two things collection deliberately does not: **sessions**
 (attribution taken at the session's *first* event, the reference platform's rule) and **channel grouping** (the reference platform's
-default channel group as an ordered CASE). It is written to run on Athena unchanged once the S3
-sink is pointed at a bucket — only the glob path differs.
+default channel group as an ordered CASE). It is written to run on Athena unchanged once the sink
+points at a bucket — only the glob path differs.
 
 The report includes an `ingest partition vs event date` breakdown, which exists to keep one
 tradeoff visible: `dt` is the *ingest* date, so `WHERE dt = '<past date>'` silently returns nothing
 for events that happened then. Filter on `dt` to prune files, on `event_date` to answer a question,
 and pad `dt` by ±1 day when the question is about `event_date`.
 
-Tests: six suites, 95 checks — see [`validation/README.md`](validation/README.md), including the
+Tests: six suites, 110 checks — see [`validation/README.md`](validation/README.md), including the
 list of what they do *not* prove. The two that matter most: the snippet has never run in a real
-browser, and the S3 writer has never talked to AWS.
+browser, and no cloud backend has ever been written to.
 
 ## The event contract
 
@@ -137,9 +158,10 @@ precisely so the sandboxed-template route works, since GTM's `sendPixel` API is 
 | Increment | Contents | Status |
 |---|---|---|
 | 1 | contract, collector on local disk, browser snippet, GTM Custom HTML install | ✅ |
-| 2 | S3 writer, Dockerfile, docker-compose | ✅ |
+| 2 | object-store writer, Dockerfile, docker-compose | ✅ |
 | 3 | query layer, sessions, the reference platform channel grouping (DuckDB, local) | ✅ |
-| later | real S3 bucket + Athena · GTM Custom Template · server-side GTM tag · dashboard · Android and iOS SDKs | |
+| 4 | one URI-based sink across AWS/GCP/Azure, docker as the entry point | ✅ |
+| later | a real bucket on each cloud · Athena · GTM Custom Template · server-side GTM tag · dashboard · Android and iOS SDKs | |
 
 The dashboard is deliberately last. It does not get built until real data has been sitting in
 storage for a week and been queried with Athena.
