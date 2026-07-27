@@ -15,16 +15,42 @@ Android, and iOS.
 
 ## Why
 
-Cross-platform campaign attribution is where open source analytics is weakest.
+Campaign attribution breaks at the platform boundary.
 
-| Tool | Mobile SDKs | Campaign attribution | License |
-|---|---|---|---|
-| **Matomo** | real Android + iOS SDKs | Android reports install source, not campaigns; iOS needs explicit tracker config | GPL (SDKs BSD-3) |
-| **PostHog** | good | weak marketing channel modeling | MIT |
-| **Snowplow** | good | strong, but you build the modeling | trackers Apache 2.0; server components limited-use |
-| **Plausible / Umami** | none | basic UTM capture | AGPL / MIT |
+Someone clicks your ad, reads two pages on the web, installs your app the next day, and converts
+on their phone a week later. The web side saw a `utm_source`. The app side saw an install. Nothing
+joins the campaign across them, so the channel that actually earned the conversion gets credited to
+"direct" — or to whatever the last platform to see the user happened to call itself.
 
-Nobody does best-in-class cross-platform campaign attribution in open source. That is the gap.
+It stays broken because each platform hands you a different shape:
+
+- **Web** gives you URL parameters and a cookie you control.
+- **Android** gives you a referrer string from the Play Install Referrer API — UTM-shaped, readable
+  once, at first launch.
+- **iOS** gives you an AdServices attribution token you exchange with Apple, and what comes back is
+  numeric campaign and ad-group IDs from Apple Search Ads. There is no `utm_source` at all.
+
+Three formats, three identity models, three moments in time. Reconciling them is normally either
+manual SQL that nobody trusts, or a paid attribution vendor.
+
+## What minuano does about it
+
+**One event contract, every platform.** Campaign source, medium and name live on the event itself,
+tagged first-touch or last-touch as observed — so attribution never has to be reconstructed
+afterwards by guessing at session ordering.
+
+**Collection stores what it saw; nothing else.** Raw UTMs land exactly as observed, and channel
+grouping runs as a separate pass over immutable files. Get the classification wrong and you re-run
+it; you don't re-collect a month of traffic.
+
+**Sessions and channels follow the reference platform's published rules**, so the numbers mean what people already
+expect them to mean — without the data leaving infrastructure you control.
+
+Being straight about the hard part: the event contract handles web and Android today, and **iOS
+attribution does not fit it yet** — Apple's numeric Search Ads IDs have no home in a
+`source/medium/campaign` object. That's a known schema-v1 problem, written up in
+[`PROJECT.md`](PROJECT.md) rather than glossed over. Mobile SDKs are the goal the contract was
+shaped around; neither one is built.
 
 ## Design
 
