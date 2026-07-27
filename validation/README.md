@@ -16,9 +16,10 @@ uv run validation/checks/check_output.py     # what the collector actually wrote
 uv run validation/checks/check_snippet.py    # what the snippet actually sends (needs node)
 uv run validation/checks/check_s3_writer.py  # S3 key layout and sink parity (no AWS needed)
 uv run validation/checks/check_container.py  # the container, and two instances on one prefix (needs docker)
+uv run validation/checks/check_analytics.py  # sessions and channel grouping over collected events
 ```
 
-67 checks total: 14 + 22 + 16 + 11 + 14.
+95 checks total: 14 + 22 + 16 + 11 + 14 + 28.
 
 Each writes its console output to `validation/output/step*-*.txt`. All three exit non-zero on
 failure, so they compose into a pre-commit or CI step later.
@@ -32,6 +33,7 @@ failure, so they compose into a pre-commit or CI step later.
 | `check_snippet` | UTMs are read from the URL and persisted to a page without them; the first event of a new visitor is `first_touch` and the rest are `last_touch`; `anonymous_id` survives a session boundary; 31 minutes of inactivity starts a new `session_id`; a `track()` call made before load still lands; a nested param is dropped and the valid ones kept |
 | `check_s3_writer` | the S3 key layout matches the local path layout exactly; one `put_object` per (stream, partition) per flush; no key is reused across flushes; both sinks emit byte-identical NDJSON; `MINUANO_SINK=s3` without a bucket, and an unknown sink, both fail at boot rather than at first flush |
 | `check_container` | the image builds and runs as a non-root user; the container's own `HEALTHCHECK` reports healthy; `docker compose stop` drains the buffer to the host volume; logs are one JSON object per line on stdout; **two instances writing to one prefix lose nothing and do not overwrite each other** |
+| `check_analytics` | every collected event is visible to the query layer; three event-dates land in one ingest partition and filtering on `dt` for a past event-date returns 0 rows while `event_date` returns 3; sessions match the hand-authored shape; **attribution comes from the session's first event, not its last**; sessions re-derived from the 30-minute gap match the client's count; all nine fixture sessions classify into the expected the reference platform channel with none falling through to Unassigned |
 
 The expectations live in `cases/fixtures.json` and are hand-written. They are never generated
 from the collector's own output — an expectation derived from the mechanism being verified
@@ -58,6 +60,17 @@ proves nothing.
 - **The container is proved on one platform.** macOS, Docker Desktop, arm64. The non-root user
   writing to a bind mount is exactly the thing that behaves differently on Linux hosts, where uid
   10001 may not own the host directory.
+- **The channel classifier is checked against nine hand-picked sessions, not against the reference platform.** Every
+  fixture was written to exercise a branch, so passing means the CASE does what the doc says — not
+  that minuano and the reference platform would agree on real traffic. The honest test is running both over the same
+  property and diffing. Two known approximations: the search/social source lists are a seed list
+  rather than the reference platform's managed one, and channels driven by Google Ads metadata (ad network type,
+  campaign type) cannot be reproduced from UTMs at all.
+- **The SQL has never run on Athena.** It is written to port — one path change — but Trino and
+  DuckDB disagree on enough (struct access, `arg_min`, `date_diff` argument order, regex flavour)
+  that "ports cleanly" is a claim, not a result, until it runs there.
+- **Nine sessions is not a dataset.** Nothing here says anything about query cost, partition
+  pruning at volume, or whether the ±1 day boundary padding is sufficient in practice.
 - **Nothing about Athena.** Whether this NDJSON layout is actually queryable and cheap is the
   question increment 3 answers. It is the first real test of the partition-by-ingest-date decision.
 - **Timezones.** Every fixture lands on one UTC day. A run crossing midnight UTC, or a client with

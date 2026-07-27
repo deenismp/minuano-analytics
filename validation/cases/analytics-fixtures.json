@@ -1,0 +1,74 @@
+{
+  "_comment": "Hand-authored events with hand-authored expected sessions and channels. Posted through the real collector, so the file layout under test is the one the collector produces. Event timestamps deliberately span three dates while every event is ingested today -- that is what makes the ingest-date-vs-event-date tradeoff visible.",
+  "expected": {
+    "events": 11,
+    "visitors": 8,
+    "sessions": 9,
+    "event_dates": 3,
+    "ingest_partitions": 1,
+    "channels": {
+      "Paid Search": 2,
+      "Organic Search": 1,
+      "Email": 1,
+      "Organic Social": 1,
+      "Direct": 1,
+      "Referral": 1,
+      "Paid Social": 1,
+      "Display": 1
+    }
+  },
+  "sessions": [
+    { "session_id": "1785110000", "anonymous_id": "anon_a_00001", "channel": "Paid Search",    "events": 2, "entry_path": "/pricing", "why": "google + cpc" },
+    { "session_id": "1785112700", "anonymous_id": "anon_a_00001", "channel": "Paid Search",    "events": 1, "entry_path": "/checkout", "why": "45-minute gap -- same visitor, new session, campaign persisted by the cookie" },
+    { "session_id": "1785020000", "anonymous_id": "anon_b_00002", "channel": "Organic Search", "events": 2, "entry_path": "/blog", "why": "google + organic" },
+    { "session_id": "1785027200", "anonymous_id": "anon_c_00003", "channel": "Email",          "events": 1, "entry_path": "/offer", "why": "medium = email" },
+    { "session_id": "1784930000", "anonymous_id": "anon_d_00004", "channel": "Organic Social", "events": 1, "entry_path": "/post", "why": "facebook + social" },
+    { "session_id": "1784931800", "anonymous_id": "anon_e_00005", "channel": "Direct",         "events": 1, "entry_path": "/", "why": "no campaign at all -- NULLs become (direct)/(none) at enrichment" },
+    { "session_id": "1784933600", "anonymous_id": "anon_f_00006", "channel": "Referral",       "events": 1, "entry_path": "/docs", "why": "medium = referral" },
+    { "session_id": "1785117200", "anonymous_id": "anon_g_00007", "channel": "Paid Social",    "events": 1, "entry_path": "/signup", "why": "facebook + cpc -- paid branch wins because it is tested before Organic Social" },
+    { "session_id": "1785120800", "anonymous_id": "anon_h_00008", "channel": "Display",        "events": 1, "entry_path": "/lp", "why": "cpm matches the paid regex too, but from a non-search non-social source it is Display" }
+  ],
+  "events": [
+    { "schema_version": "0", "event_name": "page_view", "event_timestamp": "2026-07-27T10:00:00Z", "anonymous_id": "anon_a_00001", "session_id": "1785110000",
+      "page": { "path": "/pricing", "url": "https://example.com/pricing", "title": "Pricing", "referrer": null },
+      "campaign": { "source": "google", "medium": "cpc", "campaign": "july_launch", "attribution": "first_touch" } },
+    { "schema_version": "0", "event_name": "page_view", "event_timestamp": "2026-07-27T10:05:00Z", "anonymous_id": "anon_a_00001", "session_id": "1785110000",
+      "page": { "path": "/features", "url": "https://example.com/features", "title": "Features", "referrer": null },
+      "campaign": { "source": "google", "medium": "cpc", "campaign": "july_launch", "attribution": "last_touch" } },
+    { "schema_version": "0", "event_name": "page_view", "event_timestamp": "2026-07-27T10:50:00Z", "anonymous_id": "anon_a_00001", "session_id": "1785112700",
+      "page": { "path": "/checkout", "url": "https://example.com/checkout", "title": "Checkout", "referrer": null },
+      "campaign": { "source": "google", "medium": "cpc", "campaign": "july_launch", "attribution": "last_touch" } },
+
+    { "schema_version": "0", "event_name": "page_view", "event_timestamp": "2026-07-26T09:00:00Z", "anonymous_id": "anon_b_00002", "session_id": "1785020000",
+      "page": { "path": "/blog", "url": "https://example.com/blog", "title": "Blog", "referrer": "https://www.google.com/" },
+      "campaign": { "source": "google", "medium": "organic", "attribution": "first_touch" } },
+    { "schema_version": "0", "event_name": "signup_completed", "event_timestamp": "2026-07-26T09:10:00Z", "anonymous_id": "anon_b_00002", "session_id": "1785020000",
+      "page": { "path": "/signup", "url": "https://example.com/signup", "title": "Sign up", "referrer": null },
+      "campaign": { "source": "google", "medium": "organic", "attribution": "last_touch" },
+      "params": { "plan": "pro" } },
+
+    { "schema_version": "0", "event_name": "page_view", "event_timestamp": "2026-07-26T11:00:00Z", "anonymous_id": "anon_c_00003", "session_id": "1785027200",
+      "page": { "path": "/offer", "url": "https://example.com/offer", "title": "Offer", "referrer": null },
+      "campaign": { "source": "newsletter", "medium": "email", "campaign": "july_digest", "attribution": "first_touch" } },
+
+    { "schema_version": "0", "event_name": "page_view", "event_timestamp": "2026-07-25T08:00:00Z", "anonymous_id": "anon_d_00004", "session_id": "1784930000",
+      "page": { "path": "/post", "url": "https://example.com/post", "title": "Post", "referrer": "https://www.facebook.com/" },
+      "campaign": { "source": "facebook", "medium": "social", "attribution": "first_touch" } },
+
+    { "schema_version": "0", "event_name": "page_view", "event_timestamp": "2026-07-25T08:30:00Z", "anonymous_id": "anon_e_00005", "session_id": "1784931800",
+      "page": { "path": "/", "url": "https://example.com/", "title": "Home", "referrer": null },
+      "campaign": { "source": null, "medium": null, "campaign": null, "attribution": "first_touch" } },
+
+    { "schema_version": "0", "event_name": "page_view", "event_timestamp": "2026-07-25T09:00:00Z", "anonymous_id": "anon_f_00006", "session_id": "1784933600",
+      "page": { "path": "/docs", "url": "https://example.com/docs", "title": "Docs", "referrer": "https://news.ycombinator.com/" },
+      "campaign": { "source": "news.ycombinator.com", "medium": "referral", "attribution": "first_touch" } },
+
+    { "schema_version": "0", "event_name": "page_view", "event_timestamp": "2026-07-27T12:00:00Z", "anonymous_id": "anon_g_00007", "session_id": "1785117200",
+      "page": { "path": "/signup", "url": "https://example.com/signup", "title": "Sign up", "referrer": null },
+      "campaign": { "source": "facebook", "medium": "cpc", "campaign": "retarget_q3", "attribution": "first_touch" } },
+
+    { "schema_version": "0", "event_name": "page_view", "event_timestamp": "2026-07-27T13:00:00Z", "anonymous_id": "anon_h_00008", "session_id": "1785120800",
+      "page": { "path": "/lp", "url": "https://example.com/lp", "title": "Landing", "referrer": null },
+      "campaign": { "source": "doubleclick", "medium": "cpm", "campaign": "awareness_q3", "attribution": "first_touch" } }
+  ]
+}

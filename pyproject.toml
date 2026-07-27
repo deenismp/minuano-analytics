@@ -13,6 +13,7 @@ dependencies = [
     "uvicorn>=0.34",
     "jsonschema>=4.23",
     "boto3>=1.35",       # increment 2, S3 sink. Imported lazily; the local path never loads it.
+    "duckdb>=1.5.5",  # increment 3, the local query layer. Reads the NDJSON in place; SQL ports to Athena.
 ]
 
 [build-system]

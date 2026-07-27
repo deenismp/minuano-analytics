@@ -81,6 +81,35 @@ overwrite behaviour are all unexercised. The stub cannot fail the way AWS fails.
 **Do this before trusting the S3 sink:** run the collector against a real bucket with
 `MINUANO_SINK=s3`, post the fixture set, and confirm the objects and their contents in S3.
 
+## TRAP-8 — DuckDB resolves a glob when the view is CREATED, not when it is queried
+
+**Date:** 2026-07-27 · **Status:** FIXED
+
+`CREATE VIEW bad_events AS SELECT * FROM read_json('.../bad/dt=*/*.ndjson')` fails outright with
+`IO Error: No files found that match the pattern` on any run where nothing was rejected. Views are
+not lazy about their globs.
+
+**Fix:** `bad_events` lives in its own `sql/bad_events.sql`, executed by the runner only when a
+reject file actually exists. So `bad_events` may legitimately not exist, and callers must handle a
+`CatalogException` rather than assuming the view is there.
+
+**Taught:** a healthy pipeline produces no bad rows, so this failure only shows up on a *clean*
+run — the run you are least likely to be testing.
+
+## TRAP-9 — `WHERE dt = '<date>'` is a silently wrong way to ask about event dates
+
+**Date:** 2026-07-27 · **Status:** MITIGATED by design, but it will still catch someone
+
+`dt` is the **ingest** date. `event_date` is when the event happened. In the increment 3 fixtures,
+eleven events spanning three event-dates all sit in a single `dt=2026-07-27` partition, so
+`WHERE dt = '2026-07-26'` returns **0 rows** while `WHERE event_date = '2026-07-26'` returns 3.
+
+No error, no warning, just a smaller number than the truth — the worst failure shape there is.
+
+**Rule:** filter on `dt` to prune files, on `event_date` to answer a question. When the question is
+about `event_date`, pad `dt` by ±1 day (Boundary-File Padding). This is asserted in
+`check_analytics.py` so the tradeoff stays visible rather than becoming folklore.
+
 ## TRAP-5 — Base64 GET payloads land in access logs and hit proxy length caps
 
 **Date:** 2026-07-27 · **Status:** OPEN, accepted for v0

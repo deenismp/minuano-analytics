@@ -5,8 +5,10 @@ Android, and iOS.
 
 *Minuano* is the cold wind that crosses the pampa in southern Brazil after a front passes.
 
-> **Status: pre-alpha.** Increment 1 — collector, snippet, local disk. Nothing here is
-> production-ready and the event schema is version `0`, which means it can change.
+> **Status: pre-alpha.** v0 runs end to end locally — collector, browser snippet, container, and a
+> query layer that derives sessions and the reference platform channel groups. Nothing here has served production
+> traffic, the S3 sink has never talked to AWS, and the event schema is version `0`, which means it
+> can change.
 
 ## Why
 
@@ -92,7 +94,25 @@ Configuration is environment variables only:
 | `MINUANO_CORS_ORIGINS` | `*` | comma-separated; set this in production |
 | `MINUANO_INSTANCE_ID` | random | appears in every filename, so instances never collide |
 
-Tests: five suites, 67 checks — see [`validation/README.md`](validation/README.md), including the
+### Querying what you collected
+
+```bash
+uv run analytics/run.py                      # over ./data
+uv run analytics/run.py --data-dir <path>
+```
+
+DuckDB reads the NDJSON where it sits — no load step, no service, views recreated on every run.
+The SQL in [`sql/`](sql/) derives the two things collection deliberately does not: **sessions**
+(attribution taken at the session's *first* event, the reference platform's rule) and **channel grouping** (the reference platform's
+default channel group as an ordered CASE). It is written to run on Athena unchanged once the S3
+sink is pointed at a bucket — only the glob path differs.
+
+The report includes an `ingest partition vs event date` breakdown, which exists to keep one
+tradeoff visible: `dt` is the *ingest* date, so `WHERE dt = '<past date>'` silently returns nothing
+for events that happened then. Filter on `dt` to prune files, on `event_date` to answer a question,
+and pad `dt` by ±1 day when the question is about `event_date`.
+
+Tests: six suites, 95 checks — see [`validation/README.md`](validation/README.md), including the
 list of what they do *not* prove. The two that matter most: the snippet has never run in a real
 browser, and the S3 writer has never talked to AWS.
 
@@ -118,8 +138,8 @@ precisely so the sandboxed-template route works, since GTM's `sendPixel` API is 
 |---|---|---|
 | 1 | contract, collector on local disk, browser snippet, GTM Custom HTML install | ✅ |
 | 2 | S3 writer, Dockerfile, docker-compose | ✅ |
-| 3 | Athena over the raw NDJSON | next |
-| later | GTM Custom Template · server-side GTM tag · campaign enrichment and channel grouping · Android and iOS SDKs | |
+| 3 | query layer, sessions, the reference platform channel grouping (DuckDB, local) | ✅ |
+| later | real S3 bucket + Athena · GTM Custom Template · server-side GTM tag · dashboard · Android and iOS SDKs | |
 
 The dashboard is deliberately last. It does not get built until real data has been sitting in
 storage for a week and been queried with Athena.
