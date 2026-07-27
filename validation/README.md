@@ -37,6 +37,12 @@ failure, so they compose into a pre-commit or CI step later.
 | `check_container` | the image builds and runs as a non-root user; the container's own `HEALTHCHECK` reports healthy; `docker compose stop` drains the buffer to the host volume; logs are one JSON object per line on stdout; `docker compose run --rm analytics` runs the same SQL in the container as on the host; the demo profile serves the page and the snippet; **two instances writing to one prefix lose nothing and do not overwrite each other** |
 | `check_analytics` | every collected event is visible to the query layer; three event-dates land in one ingest partition and filtering on `dt` for a past event-date returns 0 rows while `event_date` returns 3; sessions match the hand-authored shape; **attribution comes from the session's first event, not its last**; sessions re-derived from the 30-minute gap match the client's count; all nine fixture sessions classify into the expected the reference platform channel with none falling through to Unassigned |
 
+**The session rule is separately validated against real traffic.** Re-deriving session boundaries
+from a 30-minute inactivity gap over 33,687 real events reproduced the reference platform's own session count to
+within 0.08% (4,901 vs 4,905), with 99.8% of users matching exactly. That validates the *rule*;
+`sql/sessions.sql`'s implementation of it is still covered only by the fixtures below, because the
+comparison was re-implemented in BigQuery to run where the data is.
+
 The expectations live in `cases/fixtures.json` and are hand-written. They are never generated
 from the collector's own output — an expectation derived from the mechanism being verified
 proves nothing.
