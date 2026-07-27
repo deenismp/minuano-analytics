@@ -135,6 +135,14 @@ def main() -> int:
         check(json.loads(body)["buffered"] == len(FIXTURES) + 1,
               "healthz reports the full buffer", f"buffered={json.loads(body)['buffered']}")
 
+        # `/health` is not decoration: Cloud Run's frontend reserves `/healthz` and answers it
+        # itself with an HTML 404, so on that platform `/health` is the only externally reachable
+        # health path. Deleting it as a duplicate would break the Cloud Run runbook. See TRAP-14.
+        alias_status, _, alias_body = request("GET", "/health")
+        check(alias_status == 200 and json.loads(alias_body)["status"] == json.loads(body)["status"],
+              "/health answers identically to /healthz (Cloud Run reserves /healthz)",
+              f"status={alias_status} body={alias_body[:80]}")
+
         # --- SIGTERM is the flush ------------------------------------------------------
         proc.send_signal(signal.SIGTERM)
         stdout, _ = proc.communicate(timeout=20)

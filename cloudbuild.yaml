@@ -1,0 +1,43 @@
+# Cloud Build config — exists for exactly one reason.
+#
+# `gcloud run deploy --source .` cannot pass a Docker build ARG. Its `--set-build-env-vars` flag
+# looks like it should, but it only reaches Google Cloud buildpacks; a Dockerfile build ignores it.
+# The collector's `MINUANO_EXTRAS` is a build ARG, so a source deploy produces an image with no
+# cloud backend, and the container refuses to boot against a `gs://` sink. That is not a
+# hypothetical — it is how the first deploy of this service failed. See error.md, TRAP-13.
+#
+# So the build is explicit: build with the arg, push, then `gcloud run deploy --image`.
+#
+#   gcloud builds submit --config cloudbuild.yaml \
+#       --substitutions=_EXTRAS=gcp --project=minuano-analytics --region=southamerica-east1
+#
+# `_EXTRAS` is space-separated and takes any of: aws gcp azure. Empty builds the base image with
+# no cloud SDK at all, which is the Dockerfile's own default and the right one for `file://`.
+
+substitutions:
+  _EXTRAS: gcp
+  _REGION: southamerica-east1
+  _REPO: cloud-run-source-deploy
+  _SERVICE: minuano-collector
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - MINUANO_EXTRAS=${_EXTRAS}
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
+      - .
+
+# Both tags are pushed. `latest` is what the runbook deploys; the $BUILD_ID tag is what lets you
+# roll back to a specific build without rebuilding it.
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -192,10 +192,18 @@ precisely so the sandboxed-template route works, since GTM's `sendPixel` API is 
 | 2 | object-store writer, Dockerfile, docker-compose | ✅ |
 | 3 | query layer, sessions, the reference platform channel grouping (DuckDB, local) | ✅ |
 | 4 | one URI-based sink across AWS/GCP/Azure, docker as the entry point | ✅ |
+| 5 | CI on Linux, contributor docs, the validation harness | ✅ |
+| 6 | deployable — `$PORT`, credentials from the environment, deploy runbooks | ✅ |
+| 7 | **deployed** — live on Cloud Run, collecting to GCS | ✅ |
 | later | `s3://` and `az://` against real buckets · Athena · GTM Custom Template · server-side GTM tag · dashboard · Android and iOS SDKs | |
 
+The collector has been live on Cloud Run since 2026-07-27, writing to a real bucket. Deploying it
+turned up three defects that no local test could have found — a build argument that a source
+deploy cannot pass, a health path the platform reserves, and a least-privilege IAM role the boot
+probe had quietly outgrown. All three are written up in [`error.md`](error.md).
+
 The dashboard is deliberately last. It does not get built until real data has been sitting in
-storage for a week and been queried with Athena.
+storage for a week and been queried.
 
 ## Deploying
 

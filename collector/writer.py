@@ -64,6 +64,9 @@ class BufferedNDJSONWriter:
         collector has already answered 2xx to real traffic that it is about to lose. The most
         common cause is the boring one: on Linux a bind-mounted host directory is owned by the
         host user, and this container deliberately runs as an unprivileged uid.
+
+        Only the *write* is asserted. Removing the probe afterwards is best-effort on purpose --
+        see the note below.
         """
         probe = f"{self._root}/.minuano-writable-{self._instance_id}"
         try:
@@ -71,13 +74,27 @@ class BufferedNDJSONWriter:
                 self._fs.makedirs(self._root, exist_ok=True)
             with self._fs.open(probe, "wb") as handle:
                 handle.write(b"ok\n")
-            self._fs.rm(probe)
         except Exception as exc:
             raise RuntimeError(
                 f"sink {self.location} is not writable: {type(exc).__name__}: {exc}\n"
                 "If this is a bind mount on Linux, the container's uid does not own the host "
                 "directory. Run with: MINUANO_UID=$(id -u) MINUANO_GID=$(id -g) docker compose up"
             ) from exc
+
+        # Cleanup is deliberately not part of the assertion. Raw is append-only, so the
+        # collector's identity should not be *able* to delete -- on GCS the least-privilege role
+        # for this workload, roles/storage.objectCreator, grants create without delete, and a
+        # required delete here would force every deployment to widen that to objectAdmin. That
+        # would hand a public, unauthenticated endpoint the power to erase the raw store, which
+        # is a far worse trade than the object left behind.
+        #
+        # The probe key carries the instance id, so it is never overwritten and never collides;
+        # a bucket lifecycle rule reclaims it. It sits beside the `events/` and `bad/` prefixes,
+        # not inside them, so no downstream glob ever sees it.
+        try:
+            self._fs.rm(probe)
+        except Exception:
+            pass
 
     def _key(self, stream: str, dt: str, seq: int) -> str:
         return f"{stream}/dt={dt}/{self._instance_id}-{seq:06d}.ndjson"

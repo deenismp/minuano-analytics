@@ -152,7 +152,15 @@ async def _store_unparseable(request: Request, body: bytes, reason: str) -> None
     })
 
 
+# Two paths, one handler. `/healthz` is the conventional name and what every other platform
+# probes -- but **Google Cloud Run reserves `/healthz`**: its frontend answers the request itself
+# with a branded HTML 404, the container never sees it, and nothing appears in Cloud Logging. A
+# perfectly healthy service therefore looks dead to anyone following the obvious runbook step.
+# Docker's own HEALTHCHECK is unaffected because it dials 127.0.0.1 inside the container, below
+# the frontend. `/health` is not reserved; it is the one to curl from outside on Cloud Run.
+# See error.md, TRAP-14.
 @app.get("/healthz")
+@app.get("/health")
 async def healthz(request: Request) -> dict:
     writer = request.app.state.writer
     return {

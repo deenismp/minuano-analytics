@@ -66,6 +66,7 @@ def main() -> int:
 
     try:
         deadline = time.time() + 30
+        booted = False
         while time.time() < deadline:
             if proc.poll() is not None:
                 out = proc.stdout.read() if proc.stdout else ""
@@ -73,12 +74,25 @@ def main() -> int:
                 return 1
             try:
                 urllib.request.urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=5)
+                booted = True
                 break
             except OSError:
                 time.sleep(0.3)
-        # Booting at all means preflight wrote and deleted a probe object -- i.e. real
-        # credentials, real IAM, real bucket, all working.
-        check(True, "collector booted, so preflight wrote a probe object to the cloud")
+
+        # Booting at all means preflight wrote a probe object -- i.e. real credentials, real IAM,
+        # real bucket, all working. (The probe is no longer deleted: the least-privilege role for
+        # this workload grants create without delete. See error.md, TRAP-15.)
+        #
+        # `booted` is tracked rather than assumed. This was `check(True, ...)` placed after a loop
+        # that can fall through on timeout without the process having died -- so the single most
+        # important assertion in this file, the one claiming real credentials worked, was
+        # structurally incapable of failing. It duly printed PASS on a run where the collector
+        # never came up at all. See error.md, TRAP-17.
+        check(booted, "collector booted, so preflight wrote a probe object to the cloud",
+              "" if booted else f"no response on 127.0.0.1:{PORT} within 30s; the process is alive "
+                                "but not serving — usually missing credentials for the sink")
+        if not booted:
+            return 1
 
         payload = json.dumps([f["event"] for f in FIXTURES]).encode()
         request = urllib.request.Request(f"http://127.0.0.1:{PORT}/collect", data=payload,

@@ -1,7 +1,8 @@
 # minuano — what exists now, and why it is that way
 
 **Updated:** 2026-07-27
-**Status:** increments 1–4 complete; runs end to end from `docker compose`, 110 checks passing
+**Status:** increments 1–7 complete. **Live on Cloud Run**, collecting to `gs://minuano-demo-raw`;
+124 checks passing
 **Repo:** `github.com/deenismp/minuano-analytics` (local directory is still `open-tracking` — rename pending)
 
 > Every delivery updates this file. A delivery is not done until the component row, the status,
@@ -15,9 +16,11 @@
 |---|---|---|---|
 | Event contract | `schema/event.v0.json` | ✅ committed | JSON Schema draft 2020-12, version `0` |
 | Working agreement | `CLAUDE.md` | ✅ committed | invariants live here |
-| Specs | `docs/spec-increment-{1,2,3,4}.md` | ✅ committed | checkboxes tracked in-file |
-| Collector | `collector/` | ✅ increment 1 | FastAPI, local writer, non-lossy. 22/22 checks |
-| Validation harness | `validation/` | ✅ increment 5 | 7 runners, 122 checks; the cloud one skips without a bucket |
+| Specs | `docs/spec-increment-{1..7}.md` | ✅ committed | checkboxes tracked in-file |
+| Collector | `collector/` | ✅ increment 1 | FastAPI, local writer, non-lossy. 23/23 checks |
+| Validation harness | `validation/` | ✅ increment 5 | 7 runners, 124 checks; the cloud one skips without a bucket |
+| **Live deployment** | Cloud Run `minuano-collector` | ✅ increment 7 | `southamerica-east1`, keyless SA, scale-to-zero, max 3. Proved end to end against a real bucket |
+| Cloud build config | `cloudbuild.yaml` | ✅ increment 7 | exists because `run deploy --source` cannot pass a build ARG (TRAP-13) |
 | Browser snippet | `snippet/minuano.js` | ✅ increment 1 | zero deps; 2838 min / 1530 gzip / 1296 brotli |
 | Demo page | `demo/demo.html` | ✅ increment 1 | local end-to-end loop |
 | GTM install doc | `docs/install-gtm.md` | ✅ increment 1 | Custom HTML tag + custom-event tag |
@@ -26,7 +29,7 @@
 | Query layer | `sql/`, `analytics/run.py` | ✅ increment 3 | DuckDB over the NDJSON in place; SQL written to port to Athena |
 | Sessions | `sql/sessions.sql` | ✅ increment 3 | attribution at session start; the 30-min rule reproduces the reference platform sessions to **-0.08%** on real traffic |
 | Channel grouping | `sql/channels.sql` | ✅ increment 3 | the reference platform default channel group, ordered CASE. **≥99.6% agreement with the reference platform on 7.8M real events, two independent properties** |
-| Athena | — | ⬜ blocked | needs the sink pointed at a real bucket; the SQL is written for it |
+| Athena | — | ⬜ blocked | needs the sink pointed at a real **S3** bucket; the SQL is written for it. The live deployment writes to GCS, so this is no longer blocked on "no cloud data" — only on `s3://` |
 | Deploy docs | `docs/deploy.md` + `deploy-cloud-run.md` + `deploy-railway.md` | ✅ increment 6 | platform contract + two worked examples |
 | CI | `.github/workflows/ci.yml` | ✅ increment 5 | all six suites on ubuntu; found BUG-1 on its first run |
 | Contributor docs | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/` | ✅ increment 5 | issue + PR templates |
@@ -78,6 +81,10 @@
 
 | 2026-07-27 | **Credentials arrive as an environment variable, not a file.**<br>*Why + alternatives rejected:* Railway and similar hosts have no filesystem to mount a key into. `GOOGLE_APPLICATION_CREDENTIALS_JSON` is written to a `0600` temp file at boot and the path exported — the same shape `pingu-chat` already uses, so it is one pattern to remember rather than two. AWS and Azure need nothing; their SDKs read env vars directly. Rejected baking the key into the image (ends up in a registry layer) and passing it as a build ARG (Railway echoes expanded `RUN` commands into the plaintext build log — that is how a PAT leaked once).<br>*Verified by:* `check_cloud_sink` 9/9 against a real GCS bucket with **no key file path set at all**.<br>*Provenance:* main thread, 2026-07-27. |
 | 2026-07-27 | **`CMD` is `sh -c exec uvicorn …` rather than exec-form with a fixed port.**<br>*Why + alternatives rejected:* every PaaS assigns its own port, and hardcoding 8000 is the pitfall named in `fastmcp-deploy-on-railway.md`. `exec` is load-bearing: it replaces the shell so uvicorn stays PID 1 and receives SIGTERM directly, which is what drains the buffer. A wrapper script that forgets `exec` leaves the shell as PID 1, the signal never reaches uvicorn, and the container still looks healthy while losing whatever it held. Rejected an entrypoint script for exactly that reason.<br>*Verified by:* `check_container` 19/19 after the change, including the SIGTERM drain to the host volume.<br>*Provenance:* main thread, 2026-07-27. |
+
+| 2026-07-27 | **The image is built by `cloudbuild.yaml` and deployed by digest, not by `gcloud run deploy --source`.**<br>*Why + alternatives rejected:* `MINUANO_EXTRAS` is a Docker build ARG, and a source deploy cannot set one — `--set-build-env-vars` reaches Google Cloud buildpacks only and a Dockerfile build ignores it silently. The first deploy of this service failed exactly that way. Rejected (a) **defaulting `ARG MINUANO_EXTRAS="gcp"` in the Dockerfile**, which is the runbook's own fallback suggestion: it bakes a cloud SDK into every image including local `file://` ones, abandoning the increment-4 decision that the base image carries no cloud SDK, and it silently picks GCP for AWS and Azure users too; (b) **building locally and pushing**: works, but Denis is on arm64 and Cloud Run needs linux/amd64, so it means emulated cross-builds on every deploy. A build config is also precedented here — `railway.toml` is already in the repo.<br>*Verified by:* revision 00003 booting with `gcsfs` present after two revisions that could not.<br>*Provenance:* `gcloud run deploy --help` read directly rather than recalled, plus the failed builds; main thread, 2026-07-27. |
+| 2026-07-27 | **The boot probe asserts the write and treats its own cleanup as best-effort.**<br>*Why + alternatives rejected:* `preflight()` wrote a probe object and deleted it, so it required `storage.objects.delete` — and the deploy 403'd, because the runbook deliberately grants `roles/storage.objectCreator` (create, no delete). Rejected **widening the role to `objectAdmin`**: raw is append-only by invariant and `/collect` is public and unauthenticated, so that hands a compromised endpoint the power to erase the raw store — a far worse trade than a 3-byte object left behind per cold start, which the bucket's 30-day lifecycle rule reclaims anyway. Rejected **reusing one fixed probe key**: overwriting an existing object in GCS itself requires delete, so it fails the same way on the second boot; the key carries the instance id instead. The probe sits beside `events/` and `bad/`, never inside, so no downstream glob sees it.<br>*What this changes conceptually:* least privilege became a constraint the collector code has to satisfy, not a deployment detail. The narrow role was justified in the runbook by "it never deletes" — a claim BUG-1's fix had quietly falsified three commits earlier.<br>*Verified by:* `/health` returning `ok` live under create-only IAM, which is the preflight succeeding.<br>*Provenance:* the 403 on revision 00002; main thread, 2026-07-27. |
+| 2026-07-27 | **The health endpoint is served at `/health` as well as `/healthz`.**<br>*Why + alternatives rejected:* **Cloud Run reserves `/healthz`** — its frontend answers with a branded HTML 404, the container never sees the request, and nothing reaches Cloud Logging, so a healthy service looks dead and the one tool you would debug with is silent. Localised by diffing two requests: every other path returned our FastAPI JSON 404 *and appeared in the request log*, while `/healthz` returned `text/html` with no `x-cloud-trace-context` and no log line at all; `/healthz/` returned a 307 from our own app, proving the route was registered and reachable. Rejected **renaming to `/health` outright**: `railway.toml`, the Dockerfile `HEALTHCHECK` and four validation runners all probe `/healthz`, and those work — they dial `127.0.0.1` inside the container, below the frontend — so renaming would churn working config to fix one platform. Rejected **documenting the quirk without a code change**: the runbook already said to curl `/healthz`, and a doc note is not what someone reads at 404-o'clock.<br>*Verified by:* `check_output.py` asserts the two paths answer identically, so the alias cannot be deleted later as a duplicate; and `curl $URL/health` returns `{"status":"ok"}` on the live service.<br>*Provenance:* observed on the live deploy, corroborated by Google Cloud Community reports of the same reserved-path behaviour; main thread, 2026-07-27. |
 
 ## Known deltas for schema v1
 

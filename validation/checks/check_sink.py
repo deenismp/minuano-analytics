@@ -14,6 +14,7 @@ What this does NOT prove is that any real cloud works: see validation/README.md.
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import os
 import shutil
 import sys
@@ -104,13 +105,25 @@ async def run() -> None:
           f"{local_writer.location} | {memory_writer.location}")
 
     # --- boot guards ------------------------------------------------------------------
-    with_env(MINUANO_SINK_URI="gs://bucket/raw")
-    try:
-        config.load()
-        check(False, "a URI whose backend is not installed fails at boot", "no error raised")
-    except ValueError as exc:
-        check("minuano-collector[gcp]" in str(exc),
-              "a URI whose backend is not installed fails at boot, naming the extra", str(exc))
+    # Pick a scheme whose backend is genuinely absent, rather than hardcoding `gs://`. Hardcoding
+    # made this check depend on what happened to be installed: green in CI, which installs no
+    # extras, and red on any machine where someone had run the cloud-sink check with
+    # `--extra gcp`. A check that goes red for a reason unrelated to what it tests is worse than
+    # no check -- it teaches you to skim past a failing line.
+    absent = [(scheme, extra, module)
+              for scheme, extra, module in (("gs", "gcp", "gcsfs"), ("s3", "aws", "s3fs"), ("az", "azure", "adlfs"))
+              if importlib.util.find_spec(module) is None]
+    if not absent:
+        print("[SKIP] 'backend not installed' cannot be exercised: every cloud extra is present here")
+    else:
+        scheme, extra, _ = absent[0]
+        with_env(MINUANO_SINK_URI=f"{scheme}://bucket/raw")
+        try:
+            config.load()
+            check(False, "a URI whose backend is not installed fails at boot", "no error raised")
+        except ValueError as exc:
+            check(f"minuano-collector[{extra}]" in str(exc),
+                  "a URI whose backend is not installed fails at boot, naming the extra", str(exc))
 
     with_env(MINUANO_SINK_URI="nonsense://bucket/raw")
     try:

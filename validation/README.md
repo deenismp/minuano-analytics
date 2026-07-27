@@ -21,7 +21,9 @@ MINUANO_SINK_URI=gs://bucket/raw \\
   uv run --extra gcp validation/checks/check_cloud_sink.py   # a REAL bucket (skips without one)
 ```
 
-113 checks total: 14 + 22 + 16 + 14 + 19 + 28. All of them run in CI on Linux on every pull request.
+117 checks total: 17 + 23 + 16 + 14 + 19 + 28. All of them run in CI on Linux on every pull
+request. `check_cloud_sink.py` adds 9 more, and runs only where a real bucket and credentials
+exist — 126 all told.
 
 Each writes its console output to `validation/output/step*-*.txt`. All three exit non-zero on
 failure, so they compose into a pre-commit or CI step later.
@@ -63,6 +65,12 @@ proves nothing.
 - **DuckDB has only ever read local files.** `analytics/run.py` accepts a cloud URI and hands it
   straight to DuckDB, which needs its own extension (`httpfs`, `azure`) and its own credentials —
   a completely separate path from the writer's, sharing only the URI string. Untested.
+- ~~**Nothing has ever been deployed.**~~ **Closed 2026-07-27** — the collector runs on Cloud Run
+  against `gs://minuano-demo-raw`, verified live: POST and base64-GET events landed in
+  `events/dt=…` with redaction intact, a malformed payload and a bare `GET /collect` landed in
+  `bad/…` with their errors, none rejected. Deploying found three defects the whole local suite
+  could not (error.md TRAP-13/14/15) — **a platform you have not deployed to is not a small gap**,
+  the same lesson CI-on-Linux taught in BUG-1.
 - **No load.** Buffer behaviour under sustained traffic, and what a flush costs at volume, is
   unmeasured. Concurrency is proved for two instances at six events, which is a collision test,
   not a load test.

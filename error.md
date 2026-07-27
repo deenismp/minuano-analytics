@@ -205,6 +205,125 @@ after, reading the previous run's files.
 **Taught:** every harness here starts by deleting its own output directory. The bug is invisible
 on the run you write the test on, which is the run you trust most.
 
+## TRAP-13 — `gcloud run deploy --source` cannot pass a Docker build ARG
+
+**Date:** 2026-07-27 · **Status:** FIXED · **Found by:** the first real Cloud Run deploy
+
+`--set-build-env-vars` / `--build-env-vars` look like they set build arguments. They do not: they
+only reach **Google Cloud buildpacks**. A Dockerfile build ignores them completely, with no
+warning — the build succeeds and produces a subtly wrong image.
+
+`MINUANO_EXTRAS` is a build `ARG`, so the deployed image contained no cloud backend at all and the
+container died at boot:
+
+```
+ValueError: MINUANO_SINK_URI='gs://…' needs the 'gs' backend, which is not installed
+```
+
+The runbook had actively recommended the wrong flag, so following it exactly reproduced the bug.
+
+**Fix:** `cloudbuild.yaml`, which passes `--build-arg` explicitly, then
+`gcloud run deploy --image` against what it pushed. Two commands instead of one, and deterministic.
+
+**Taught:** the failure was *loud* only because the collector validates its sink at boot. With
+lazy backend resolution this image would have deployed green, served 200s, and lost every event at
+the first flush — BUG-1 all over again, in a place no test could reach. The fail-at-boot decision
+paid for itself the first time it met a real platform.
+
+## TRAP-14 — Cloud Run reserves `/healthz`; the container never sees it
+
+**Date:** 2026-07-27 · **Status:** FIXED
+
+`curl https://<service>.run.app/healthz` returns a Google-branded **HTML 404**. The service is
+healthy. The request never reaches the container, and **nothing appears in Cloud Logging** — the
+one signal you would use to investigate is also absent.
+
+Proven, not guessed: every other path (`/health`, `/healthzz`, `/Healthz`, `/readyz`, `/livez`,
+`/`) returned *our* FastAPI JSON 404 and was logged. Only `/healthz` was missing from the request
+log. `/healthz/` returned a 307 from our own app redirecting to `/healthz`, which then vanished —
+so the route was registered and reachable, and exactly one path was being swallowed upstream.
+
+This was one runbook step away from wasting an afternoon: `docs/deploy-cloud-run.md` told you to
+verify the deploy by curling `/healthz`, which on Cloud Run *always* fails.
+
+**Fix:** the same handler is registered at `/healthz` **and** `/health`, and `check_output.py`
+asserts they answer identically so the alias cannot be removed as a duplicate. Docker's
+`HEALTHCHECK` and Railway are unaffected — they dial `127.0.0.1` inside the container, below the
+frontend — so the alias is only load-bearing for external probes on Cloud Run.
+
+**Taught:** when a platform returns *its own* error page rather than your framework's, stop
+debugging your app. Compare content-type and trace headers across two paths; ours answered
+`application/json` with `x-cloud-trace-context`, the intercepted one answered `text/html` with
+neither. That two-request diff located it faster than any log search could have.
+
+## TRAP-15 — `objectCreator` is the right role, and the preflight probe broke it
+
+**Date:** 2026-07-27 · **Status:** FIXED
+
+The runbook argued for `roles/storage.objectCreator` over `objectAdmin` on the grounds that *"the
+collector only ever PUTs new keys — it never reads and never deletes."* That stopped being true
+when BUG-1's fix added `writer.preflight()`, which writes a probe object **and deletes it**. The
+deploy failed at boot with a 403 on `storage.objects.delete`.
+
+The tempting fix is to widen the role. That is the wrong direction: raw is append-only by
+invariant, and `/collect` is a public unauthenticated endpoint, so granting its identity delete on
+the bucket means a compromised endpoint can erase the raw store.
+
+**Fix:** the write is asserted; the cleanup is best-effort and its failure is swallowed. The probe
+key carries the instance id, so it never collides and never needs an overwrite (which in GCS would
+itself require delete). One ~3-byte object is left per cold start and the bucket's 30-day
+lifecycle rule reclaims it.
+
+**Taught:** least-privilege IAM is a *design constraint on the code*, not a deployment detail
+bolted on afterwards. A permission the code does not need is a permission the code must not
+require — and the argument for the narrow role should be re-read whenever the code gains a new
+operation, because that comment in the runbook was true when written and false three commits later.
+
+## TRAP-16 — A check that asserts a dependency is *absent* is environment-dependent
+
+**Date:** 2026-07-27 · **Status:** FIXED
+
+`check_sink.py` proved that `gs://` fails at boot when the `gcp` extra is missing, by hardcoding
+`gs://`. It passes in CI, which installs no extras — and fails on any machine where someone once
+ran `uv run --extra gcp validation/checks/check_cloud_sink.py`, which leaves `gcsfs` in `.venv`.
+This session started with that check already red for a reason that had nothing to do with the code.
+
+**Fix:** pick the first backend that is genuinely absent (`gs`/`s3`/`az`) at runtime, and print an
+explicit `[SKIP]` if all three are installed.
+
+**Taught:** a red check nobody can explain is worse than a missing one — it trains you to skim past
+failures. Assertions about what is *not* installed must read the environment, not assume it.
+
+## TRAP-17 — The cloud check's most important assertion could not fail
+
+**Date:** 2026-07-27 · **Status:** FIXED
+
+`check_cloud_sink.py` polled the collector until it answered, then reported:
+
+```python
+check(True, "collector booted, so preflight wrote a probe object to the cloud")
+```
+
+`check(True, …)` — unconditional. The poll loop above it exits two ways: the collector answered,
+or the 30-second deadline passed without the process dying. On the second path it still printed
+**PASS**, and the run then died on the next request with `Connection refused`.
+
+That assertion is the whole point of the file. It is the one that claims real credentials, real
+IAM and a real bucket all work — the thing `memory://` cannot prove and the reason TRAP-7 was
+closed. It was reporting success on a run where the collector never came up.
+
+Surfaced by running the check on a machine with no Application Default Credentials, so the
+collector booted, failed its sink preflight, and never served.
+
+**Fix:** track `booted` and assert on it, with a detail line naming the usual cause (missing
+credentials). Return non-zero rather than continuing into assertions that cannot mean anything.
+
+**Taught:** this is TRAP-6 and TRAP-11 a third time — assert on the observable effect, not on
+having reached a line of code. Worth grepping a harness for `check(True` and `assert True`: any
+literal-true assertion is either documentation pretending to be a test, or a hole exactly this
+shape. The failure mode is silent and permanent, because a check that always passes never asks
+to be looked at.
+
 ## TRAP-5 — Base64 GET payloads land in access logs and hit proxy length caps
 
 **Date:** 2026-07-27 · **Status:** OPEN, accepted for v0

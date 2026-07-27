@@ -26,7 +26,9 @@ export REGION=southamerica-east1          # same region as the bucket; do not sp
 export BUCKET=minuano-demo-raw
 
 # Enables billing-eligible APIs — run deliberately, not as a reflex.
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+# artifactregistry is not optional: it stores the built image. gcloud normally offers to enable
+# it mid-deploy, but --quiet declines that prompt and the build fails instead.
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
     --project="$PROJECT" --quiet
 ```
 
@@ -49,30 +51,53 @@ gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" \
     --project="$PROJECT" --quiet
 ```
 
+`objectCreator` grants create **without delete**, which is what the append-only invariant wants:
+a public, unauthenticated `/collect` should not be able to erase the raw store even if abused.
+The collector's boot probe is written to cooperate with that — it asserts the write and treats
+removing the probe as best-effort, so it does not need `objectAdmin`. See error.md, TRAP-15.
+
 No key is created at any point. That is the whole argument for this host.
 
-## 3. Deploy
+## 3. Build, then deploy — two steps, and the reason matters
+
+**`gcloud run deploy --source .` will not work here.** The image needs the GCP backend compiled
+in via the `MINUANO_EXTRAS` build ARG, and a source deploy has no way to set one:
+`--set-build-env-vars` reaches Google Cloud buildpacks only and is silently ignored by a
+Dockerfile build. The result is an image with no cloud backend, which fails at boot with
+`needs the 'gs' backend, which is not installed`. This is not hypothetical — it is how the first
+deploy of this service failed (error.md, TRAP-13).
+
+So build explicitly with `cloudbuild.yaml`, which passes the arg:
 
 ```bash
+gcloud builds submit --config cloudbuild.yaml \
+    --substitutions=_EXTRAS=gcp \
+    --project="$PROJECT" --region="$REGION" --quiet
+```
+
+Then deploy the image it pushed:
+
+```bash
+IMAGE="$REGION-docker.pkg.dev/$PROJECT/cloud-run-source-deploy/minuano-collector:latest"
+
 gcloud run deploy minuano-collector \
-    --source . \
+    --image="$IMAGE" \
     --service-account="minuano-collector@$PROJECT.iam.gserviceaccount.com" \
     --set-env-vars="MINUANO_SINK_URI=gs://$BUCKET/raw,MINUANO_FLUSH_MAX_SECONDS=5,MINUANO_CORS_ORIGINS=https://your-site.example" \
     --allow-unauthenticated \
-    --min-instances=0 \
+    --min-instances=0 --max-instances=3 \
     --project="$PROJECT" --region="$REGION" --quiet
 ```
 
 Notes on the flags that matter:
 
-- **`--source .`** builds from the `Dockerfile`. `.gcloudignore` keeps credentials, collected
-  data and repository furniture out of the upload — check it before the first deploy.
+- **`.gcloudignore`** keeps credentials, collected data and repository furniture out of the
+  upload — check it before the first build.
 - **`--allow-unauthenticated` is required here.** A tracking endpoint that browsers post to cannot
   be authenticated. It is also the exposure: anyone with the URL can write. See §6.
 - **`--min-instances=0`** is scale-to-zero. An idle demo costs nothing.
-- The image needs the GCP backend compiled in. If the build does not pick up the extra, pass it:
-  `--build-env-vars=MINUANO_EXTRAS=gcp`, or set `ARG MINUANO_EXTRAS="gcp"` as the Dockerfile
-  default for a GCP-only deployment.
+- **`--max-instances`** is the compute-side cost cap from §6. Set it on the first deploy, not
+  after the first surprise.
 
 **Do not set `GOOGLE_APPLICATION_CREDENTIALS_JSON`.** The service identity supersedes it, and
 setting it would reintroduce exactly the key this host exists to avoid.
@@ -89,8 +114,15 @@ Dockerfile also reads `$PORT`, though Cloud Run uses its own probing and ignores
 URL=$(gcloud run services describe minuano-collector \
         --project="$PROJECT" --region="$REGION" --format="value(status.url)")
 
-curl -s "$URL/healthz"
+curl -s "$URL/health"
 ```
+
+> **Use `/health`, not `/healthz`, on Cloud Run.** `/healthz` is a reserved path: Google's
+> frontend answers it itself with a branded HTML 404, the container never receives the request,
+> and nothing is written to Cloud Logging. A perfectly healthy service looks dead. The collector
+> serves the identical payload on both paths for exactly this reason (error.md, TRAP-14).
+> Docker's `HEALTHCHECK` and Railway's probe still use `/healthz` and are unaffected — they dial
+> `127.0.0.1` inside the container, below the frontend.
 
 `{"status":"ok"}` means the process is up **and** the bucket is writable — the collector probes
 the sink at boot and refuses to start otherwise. A revision that fails to start with
@@ -106,6 +138,18 @@ curl -X POST "$URL/collect" -H 'Content-Type: application/json' \
 
 gcloud storage ls "gs://$BUCKET/raw/events/" --project="$PROJECT"
 ```
+
+Allow one flush interval (`MINUANO_FLUSH_MAX_SECONDS`) before expecting the object to appear.
+
+You will also see `raw/.minuano-writable-<instance>` objects beside `events/` and `bad/`. Those
+are the boot probes from §2 — the collector cannot delete them under `objectCreator`, by design,
+and the lifecycle rule reclaims them. They sit outside `events/` and `bad/`, so no downstream
+glob reads them.
+
+**Verified end to end on 2026-07-27** against this exact configuration: a POST event and a
+base64 `GET /collect?e=` event both landed in `raw/events/dt=…` with a `token`-suffixed param
+stored as `<REDACTED>`; a malformed payload and a bare `GET /collect` both landed in `raw/bad/…`
+with their validation errors attached, and neither was rejected.
 
 ## 5. The shutdown window
 
