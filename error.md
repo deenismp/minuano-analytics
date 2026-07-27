@@ -56,6 +56,31 @@ This is the exact shape that produced a 51K plaintext-token leak in a previous p
 what failed last time. Redaction is by replacement, never deletion, so the field's existence stays
 visible.
 
+## TRAP-6 — A clean SIGTERM shutdown does *not* exit 0
+
+**Date:** 2026-07-27 · **Status:** FIXED (in the check, not the code)
+
+The first version of `check_output.py` asserted `returncode == 0` after SIGTERM and failed, which
+looked like the shutdown hook was broken. It was not: uvicorn restores the default signal handler
+and re-raises the captured signal once the lifespan shutdown has run
+(`uvicorn/server.py`, `capture_signals`), so the process dies *by* SIGTERM and reports `-15`.
+
+**Taught:** exit 0 after SIGTERM would actually mean the signal was swallowed. Assert on the
+observable effect — the drain log line and the file on disk — not on the exit code. Verified by
+reading uvicorn's source rather than guessing, which is what turned a "bug" into a corrected test
+in one step.
+
+## TRAP-7 — The S3 writer has never spoken to AWS
+
+**Date:** 2026-07-27 · **Status:** OPEN
+
+`check_s3_writer` injects a recording stub, so key layout and byte content are proved and nothing
+else is. Credentials, IAM, bucket policy, region routing, throttling, retries, and same-key
+overwrite behaviour are all unexercised. The stub cannot fail the way AWS fails.
+
+**Do this before trusting the S3 sink:** run the collector against a real bucket with
+`MINUANO_SINK=s3`, post the fixture set, and confirm the objects and their contents in S3.
+
 ## TRAP-5 — Base64 GET payloads land in access logs and hit proxy length caps
 
 **Date:** 2026-07-27 · **Status:** OPEN, accepted for v0

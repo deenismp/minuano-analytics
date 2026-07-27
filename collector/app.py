@@ -36,7 +36,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__, config
 from .validate import redact, validate
-from .writer import LocalNDJSONWriter
+from .writer import BufferedNDJSONWriter, make_writer
 
 # Transparent 1x1 GIF. `sendPixel` sets an image src and expects image bytes back.
 PIXEL = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
@@ -56,19 +56,15 @@ def _now() -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.writer = LocalNDJSONWriter(
-        data_dir=CFG.data_dir,
-        instance_id=CFG.instance_id,
-        flush_max_events=CFG.flush_max_events,
-        flush_max_seconds=CFG.flush_max_seconds,
-    )
+    app.state.writer = make_writer(CFG)
     await app.state.writer.start()
-    log("info", "collector started", version=__version__, data_dir=str(CFG.data_dir),
+    log("info", "collector started", version=__version__, sink=CFG.sink,
+        destination=str(CFG.data_dir) if CFG.sink == "local" else f"s3://{CFG.s3_bucket}/{CFG.s3_prefix}",
         flush_max_events=CFG.flush_max_events, flush_max_seconds=CFG.flush_max_seconds)
     yield
     # uvicorn turns SIGTERM into lifespan shutdown, so this is the SIGTERM flush.
     written = await app.state.writer.stop()
-    log("info", "collector stopped, buffer drained", files_written=[str(p) for p in written])
+    log("info", "collector stopped, buffer drained", files_written=written)
 
 
 app = FastAPI(title="minuano collector", version=__version__, lifespan=lifespan)
@@ -84,7 +80,7 @@ app.add_middleware(
 
 async def _store(request: Request, payload: Any) -> tuple[int, int]:
     """Redact, stamp, validate, and route one event to `events` or `bad`. Never raises."""
-    writer: LocalNDJSONWriter = request.app.state.writer
+    writer: BufferedNDJSONWriter = request.app.state.writer
     ingested_at = _now()
     dt = ingested_at[:10]
 
@@ -127,7 +123,7 @@ async def _collect(request: Request, payload: Any) -> tuple[int, int]:
 
 async def _store_unparseable(request: Request, body: bytes, reason: str) -> None:
     """A body that is not JSON at all is still not thrown away."""
-    writer: LocalNDJSONWriter = request.app.state.writer
+    writer: BufferedNDJSONWriter = request.app.state.writer
     ingested_at = _now()
     await writer.append("bad", ingested_at[:10], {
         "ingested_at": ingested_at,

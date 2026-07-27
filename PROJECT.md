@@ -21,8 +21,8 @@
 | Browser snippet | `snippet/minuano.js` | ✅ increment 1 | zero deps; 2838 min / 1530 gzip / 1296 brotli |
 | Demo page | `demo/demo.html` | ✅ increment 1 | local end-to-end loop |
 | GTM install doc | `docs/install-gtm.md` | ✅ increment 1 | Custom HTML tag + custom-event tag |
-| S3 writer | — | ⬜ increment 2 | |
-| Container | `Dockerfile`, `docker-compose.yml` | ⬜ increment 2 | |
+| S3 writer | `collector/writer.py` | ✅ increment 2 | sink parity proved with a stub client; **never talked to AWS** |
+| Container | `Dockerfile`, `docker-compose.yml` | ✅ increment 2 | non-root, healthcheck, SIGTERM drain proved to a host volume |
 | Athena queries | — | ⬜ increment 3 | rung 4 of the ladder in `refs/refs.md` |
 | Reference pack | `refs/refs.md` | ✅ committed | pre-existing research |
 

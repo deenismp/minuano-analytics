@@ -21,10 +21,11 @@ def _env_int(name: str, default: int) -> int:
 
 @dataclass(frozen=True)
 class Config:
-    # Where raw events land. `local` is the only sink in increment 1; the S3 writer arrives
-    # in increment 2 and will be selected here.
+    # Where raw events land. `local` is the dev path; `s3` is the deployed one.
     sink: str = field(default_factory=lambda: os.getenv("MINUANO_SINK", "local"))
     data_dir: Path = field(default_factory=lambda: Path(os.getenv("MINUANO_DATA_DIR", "./data")))
+    s3_bucket: str = field(default_factory=lambda: os.getenv("MINUANO_S3_BUCKET", ""))
+    s3_prefix: str = field(default_factory=lambda: os.getenv("MINUANO_S3_PREFIX", "raw"))
 
     # Buffering. Flush when either bound is hit, and always on shutdown.
     flush_max_events: int = field(default_factory=lambda: _env_int("MINUANO_FLUSH_MAX_EVENTS", 100))
@@ -43,8 +44,12 @@ class Config:
     instance_id: str = field(default_factory=lambda: os.getenv("MINUANO_INSTANCE_ID") or uuid.uuid4().hex[:12])
 
     def __post_init__(self) -> None:
-        if self.sink != "local":
-            raise ValueError(f"MINUANO_SINK={self.sink!r} is not supported yet; increment 1 is local-only")
+        if self.sink not in ("local", "s3"):
+            raise ValueError(f"MINUANO_SINK={self.sink!r} must be 'local' or 's3'")
+        # Fail at boot, not at the first flush: a sink that only reveals itself as
+        # misconfigured on flush has already buffered -- and then loses -- real events.
+        if self.sink == "s3" and not self.s3_bucket:
+            raise ValueError("MINUANO_SINK=s3 requires MINUANO_S3_BUCKET")
 
 
 def load() -> Config:

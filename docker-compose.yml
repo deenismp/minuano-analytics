@@ -1,0 +1,22 @@
+# Local development path: the collector in a container, writing NDJSON to a host directory.
+# No AWS involved. Switch to the S3 sink by setting MINUANO_SINK=s3 plus MINUANO_S3_BUCKET.
+services:
+  collector:
+    build: .
+    image: minuano/collector:dev
+    ports:
+      - "${MINUANO_PORT:-8000}:8000"
+    environment:
+      MINUANO_SINK: "${MINUANO_SINK:-local}"
+      MINUANO_DATA_DIR: /data
+      MINUANO_FLUSH_MAX_EVENTS: "${MINUANO_FLUSH_MAX_EVENTS:-100}"
+      MINUANO_FLUSH_MAX_SECONDS: "${MINUANO_FLUSH_MAX_SECONDS:-5}"
+      MINUANO_CORS_ORIGINS: "${MINUANO_CORS_ORIGINS:-*}"
+      # Only read when MINUANO_SINK=s3; the collector refuses to boot without a bucket.
+      MINUANO_S3_BUCKET: "${MINUANO_S3_BUCKET:-}"
+      MINUANO_S3_PREFIX: "${MINUANO_S3_PREFIX:-raw}"
+    volumes:
+      - ${MINUANO_HOST_DATA:-./data}:/data
+    # Long enough for the buffer to drain before docker escalates to SIGKILL.
+    stop_grace_period: 20s
+    restart: unless-stopped

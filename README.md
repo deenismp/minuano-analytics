@@ -58,19 +58,43 @@ open "http://localhost:8080/demo/demo.html?utm_source=newsletter&utm_medium=emai
 Click a button on the demo page, then look in `data/events/dt=<today>/`. Anything that failed
 validation is in `data/bad/` with its errors attached — nothing is ever dropped.
 
+Or in a container, which is the same collector writing to a mounted `./data`:
+
+```bash
+docker compose up --build
+curl -X POST localhost:8000/collect -d '{"schema_version":"0","event_name":"page_view",
+  "event_timestamp":"2026-07-27T12:00:00Z","anonymous_id":"anon_00000001","session_id":"1785500000"}'
+docker compose stop     # SIGTERM drains the buffer to ./data before the container exits
+```
+
+To write to S3 instead, set `MINUANO_SINK=s3` and `MINUANO_S3_BUCKET`; the collector refuses to
+boot without a bucket rather than discovering it at the first flush. Both sinks emit byte-identical
+NDJSON under the same key layout, so a reader does not care which one produced it:
+
+```
+<root>/<events|bad>/dt=YYYY-MM-DD/<instance_id>-<seq>.ndjson
+```
+
+`dt` is the **ingest** date, not the event date — a closed partition is never reorganised, and a
+skewed client clock cannot write into a past day. Downstream jobs should pad ±1 day.
+
 Configuration is environment variables only:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `MINUANO_DATA_DIR` | `./data` | where NDJSON lands |
+| `MINUANO_SINK` | `local` | `local` or `s3` |
+| `MINUANO_DATA_DIR` | `./data` | where NDJSON lands, local sink only |
+| `MINUANO_S3_BUCKET` | — | required when `MINUANO_SINK=s3`; checked at boot |
+| `MINUANO_S3_PREFIX` | `raw` | key prefix inside the bucket |
 | `MINUANO_FLUSH_MAX_EVENTS` | `100` | flush when this many events are buffered |
 | `MINUANO_FLUSH_MAX_SECONDS` | `5` | flush at least this often |
 | `MINUANO_MAX_BODY_BYTES` | `1048576` | larger bodies get the one and only 4xx |
 | `MINUANO_CORS_ORIGINS` | `*` | comma-separated; set this in production |
 | `MINUANO_INSTANCE_ID` | random | appears in every filename, so instances never collide |
 
-Tests: `uv run validation/checks/check_schema.py`, `check_output.py`, `check_snippet.py`. See
-[`validation/README.md`](validation/README.md) — including what they do *not* prove.
+Tests: five suites, 67 checks — see [`validation/README.md`](validation/README.md), including the
+list of what they do *not* prove. The two that matter most: the snippet has never run in a real
+browser, and the S3 writer has never talked to AWS.
 
 ## The event contract
 
@@ -90,12 +114,12 @@ precisely so the sandboxed-template route works, since GTM's `sendPixel` API is 
 
 ## Roadmap
 
-| Increment | Contents |
-|---|---|
-| 1 | contract, collector on local disk, browser snippet, GTM Custom HTML install |
-| 2 | S3 writer, Dockerfile, docker-compose |
-| 3 | Athena over the raw NDJSON |
-| later | GTM Custom Template · server-side GTM tag · campaign enrichment and channel grouping · Android and iOS SDKs |
+| Increment | Contents | Status |
+|---|---|---|
+| 1 | contract, collector on local disk, browser snippet, GTM Custom HTML install | ✅ |
+| 2 | S3 writer, Dockerfile, docker-compose | ✅ |
+| 3 | Athena over the raw NDJSON | next |
+| later | GTM Custom Template · server-side GTM tag · campaign enrichment and channel grouping · Android and iOS SDKs | |
 
 The dashboard is deliberately last. It does not get built until real data has been sitting in
 storage for a week and been queried with Athena.

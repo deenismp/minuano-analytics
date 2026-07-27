@@ -1,0 +1,12 @@
+.git/
+.venv/
+data/
+validation/output/
+node_modules/
+demo/
+refs/
+docs/
+*.md
+.DS_Store
+__pycache__/
+*.py[cod]
