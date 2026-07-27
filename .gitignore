@@ -1,11 +1,12 @@
 # Credentials — never committed, in a public repo least of all.
 # Keep keys OUTSIDE the repo where possible; a .gitignore entry does not stop `git add -f`,
 # an editor sync, a backup tool, or a `docker build` context from picking one up.
+# GCP service-account keys are named <project>-<12 hex>.json. Match the SHAPE, not each
+# project, so a key for a project nobody has thought of yet is still ignored on arrival.
+*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].json
 *service-account*.json
 *-credentials*.json
 *-key.json
-minuano-analytics-*.json
-gtm-*.json
 *.pem
 *.key
 *.p12

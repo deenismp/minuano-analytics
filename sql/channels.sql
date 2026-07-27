@@ -1,10 +1,15 @@
 -- the reference platform default channel group, as an ordered CASE.
 --
 -- Rules transcribed from Google's "Default channel group" documentation
--- (the platform's channel-group documentation), then corrected against 7.4M real events from a
--- production the reference platform property by diffing this macro's output against the reference platform's own
--- `reference_channel_field.reference_campaign_field.default_channel_group`. The first
--- version agreed on 92.9% of events; every disagreement worth fixing is fixed below.
+-- (the platform's channel-group documentation), then corrected against 7.8M real events from TWO
+-- independent production the reference platform properties, by diffing this macro against the reference platform's own
+-- `reference_channel_field.reference_campaign_field.default_channel_group` over the same
+-- inputs. Agreement went 92.9% -> 99.6% on the first property and 97.6% -> 99.7% on the second,
+-- which is what says the corrections generalise rather than overfitting one traffic mix.
+--
+-- Two divergences from the reference platform are DELIBERATE. `search.brave.com` we call Organic Search and the reference platform calls
+-- Referral; LLM referrers we call AI Assistant where the reference platform is inconsistent. In both cases the reference platform's
+-- managed list looks behind the traffic, and copying a stale list is worse than being explicit.
 --
 -- ORDER IS THE ALGORITHM. `cpm` matches both the paid-medium regex and the Display rule; it is
 -- Display only because the paid branches are tested first. `youtube`/`referral` is Organic Video
@@ -25,6 +30,17 @@
 --
 -- The `(direct)` / `(none)` sentinels are applied HERE, at enrichment. Raw keeps its NULLs.
 
+-- A source is only a search engine if it is not one of the engine operator's OTHER products.
+-- `docs.google.com`, `mail.google.com`, `accounts.google.com` and `gemini.google.com` all contain
+-- "google" and none of them are search; the reference platform calls every one of them Referral. This cost 12k events
+-- across two properties before it was measured. Kept as a separate macro so both the Paid Search
+-- and Organic Search branches use the identical test.
+CREATE OR REPLACE MACRO is_engine_product(src) AS (
+    regexp_matches(lower(coalesce(src, '')),
+        '^(accounts|mail|docs|keep|drive|calendar|gemini|notebooklm|sites|groups|translate|photos|meet|chat|classroom|myaccount|support|play|store|business|partner|script)\.')
+    OR regexp_matches(lower(coalesce(src, '')), '(googleusercontent|googleadservices|googletagmanager)')
+);
+
 CREATE OR REPLACE MACRO channel_group(src, med, camp) AS (
     CASE
         -- Cross-network: campaign name signals it, regardless of source or medium.
@@ -41,6 +57,7 @@ CREATE OR REPLACE MACRO channel_group(src, med, camp) AS (
         WHEN regexp_matches(lower(coalesce(med, '')), '^(.*cp.*|ppc|retargeting|paid.*)$')
              AND regexp_matches(lower(coalesce(src, '')),
                      '(google|bing|yahoo|duckduckgo|baidu|yandex|ecosia|msn|ask\.com|aol|brave|qwant|startpage|naver|seznam)')
+             AND NOT is_engine_product(src)
             THEN 'Paid Search'
 
         WHEN regexp_matches(lower(coalesce(med, '')), '^(.*cp.*|ppc|retargeting|paid.*)$')
@@ -82,8 +99,9 @@ CREATE OR REPLACE MACRO channel_group(src, med, camp) AS (
              OR regexp_matches(lower(coalesce(med, '')), '^(video|.*video.*)$')
             THEN 'Organic Video'
 
-        WHEN regexp_matches(lower(coalesce(src, '')),
-                 '(google|bing|yahoo|duckduckgo|baidu|yandex|ecosia|msn|ask\.com|aol|brave|qwant|startpage|naver|seznam)')
+        WHEN (regexp_matches(lower(coalesce(src, '')),
+                  '(google|bing|yahoo|duckduckgo|baidu|yandex|ecosia|msn|ask\.com|aol|brave|qwant|startpage|naver|seznam)')
+              AND NOT is_engine_product(src))
              OR lower(coalesce(med, '')) = 'organic'
             THEN 'Organic Search'
 

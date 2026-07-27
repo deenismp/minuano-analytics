@@ -25,7 +25,7 @@
 | Container | `Dockerfile`, `docker-compose.yml` | ✅ increment 4 | non-root, healthcheck, SIGTERM drain proved; profiles for demo and analytics |
 | Query layer | `sql/`, `analytics/run.py` | ✅ increment 3 | DuckDB over the NDJSON in place; SQL written to port to Athena |
 | Sessions | `sql/sessions.sql` | ✅ increment 3 | attribution at session start; 30-min re-derivation as a DQ test |
-| Channel grouping | `sql/channels.sql` | ✅ increment 3 | the reference platform default channel group, ordered CASE. **99.5% agreement with the reference platform on 7.4M real events** |
+| Channel grouping | `sql/channels.sql` | ✅ increment 3 | the reference platform default channel group, ordered CASE. **≥99.6% agreement with the reference platform on 7.8M real events, two independent properties** |
 | Athena | — | ⬜ blocked | needs the sink pointed at a real bucket; the SQL is written for it |
 | CI | `.github/workflows/ci.yml` | ✅ increment 5 | all six suites on ubuntu; found BUG-1 on its first run |
 | Contributor docs | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/` | ✅ increment 5 | issue + PR templates |

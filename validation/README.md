@@ -64,17 +64,20 @@ proves nothing.
 - ~~**The container is proved on one platform.**~~ **Closed 2026-07-27.** CI runs the container
   suite on ubuntu-latest x86 as well as macOS arm64 — and found a data-loss bug on its first run
   (`error.md` BUG-1). Still unproven: any other architecture, and rootless Docker/Podman.
-- **The channel classifier now agrees with the reference platform on 99.5% of a real 7.4M-event sample** — measured
-  2026-07-27 by diffing this macro against the reference platform's own `default_channel_group` over the same
-  source/medium pairs. It was 92.9% before that diff; the corrections are in `sql/channels.sql`.
-  The residual 0.45% is two classes, one structural and one cosmetic:
+- **The channel classifier agrees with the reference platform on ≥99.6% of 7.8M real events across two independent
+  properties** — 99.6% on one (from 92.9%) and 99.7% on another (from 97.6%), measured 2026-07-27
+  by diffing this macro against the reference platform's own `default_channel_group` over the same source/medium
+  pairs. Two properties is what makes it a generalisation rather than an overfit. The residual is:
   - **Structural, unfixable from UTMs:** `google`/`cpc` that the reference platform calls *Display*, and campaigns it
     calls *Cross-network* without the words appearing anywhere. Both need Google Ads metadata —
     ad network type and campaign type — that a UTM does not carry. ~26k events, 0.35%.
-  - **Cosmetic, substring over-matching:** `docs.google.com` and `keep.google.com` become Organic
-    Search because `google` matches as a substring; `pinterest.lightning.force.com` becomes Organic
-    Social for the same reason. Fixing it properly needs a managed host list, which is the thing
-    a seed list is deliberately not. ~4.5k events, 0.06%.
+  - **Deliberate divergence, not a defect:** `search.brave.com` we call Organic Search where the reference platform
+    says Referral, and LLM referrers we call AI Assistant where the reference platform is inconsistent. the reference platform's managed
+    list is behind the traffic here; copying a stale list would be worse than being explicit.
+  - **Residual substring over-matching:** `pinterest.lightning.force.com` becomes Organic Social
+    because `pinterest` matches as a substring. The Google-property class (`docs.`, `mail.`,
+    `accounts.`, `gemini.`) is now handled by `is_engine_product()`. What remains needs a managed
+    host list, which is the thing a seed list deliberately is not.
   Nine hand-authored fixtures still guard each branch; the real sample is what found the gaps.
 - **The SQL has never run on Athena.** It is written to port — one path change — but Trino and
   DuckDB disagree on enough (struct access, `arg_min`, `date_diff` argument order, regex flavour)
