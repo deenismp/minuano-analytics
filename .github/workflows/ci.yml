@@ -1,0 +1,92 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A second push to the same PR cancels the first — no point finishing a run nobody will read.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Seconds, not minutes. A contributor sees this first.
+  checks:
+    name: contract, collector, snippet, sink, analytics
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # The snippet suite drives snippet/minuano.js through a DOM shim.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: install
+        run: uv sync --frozen
+
+      - name: contract — the schema accepts and rejects what it should
+        run: uv run validation/checks/check_schema.py
+
+      - name: collector — what actually landed on disk
+        run: uv run validation/checks/check_output.py
+
+      - name: snippet — what the browser snippet actually sends
+        run: uv run validation/checks/check_snippet.py
+
+      - name: sink — parity across backends, and the boot guards
+        run: uv run validation/checks/check_sink.py
+
+      - name: analytics — sessions and the reference platform channel grouping
+        run: uv run validation/checks/check_analytics.py
+
+      - name: snippet size budget
+        run: |
+          npx --yes terser@5 snippet/minuano.js -c passes=3 -m --comments false -o /tmp/minuano.min.js
+          raw=$(wc -c < /tmp/minuano.min.js)
+          gz=$(gzip -9c /tmp/minuano.min.js | wc -c)
+          echo "minified: ${raw} bytes | gzipped: ${gz} bytes"
+          # The budget is transferred bytes -- see docs/spec-increment-1.md for why the
+          # literal 2KB-minified bar was restated rather than met.
+          if [ "$gz" -gt 2048 ]; then echo "::error::gzipped snippet exceeds 2048 bytes"; exit 1; fi
+
+      - name: evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-output
+          path: validation/output/
+          retention-days: 14
+
+  # Minutes. Builds the image and runs two collectors at once.
+  container:
+    name: container, compose profiles, concurrency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: install
+        run: uv sync --frozen
+
+      # This is the first time any of this has run on Linux. The non-root container writing to
+      # a bind mount is the specific thing validation/README.md flags as untested off macOS.
+      - name: container — build, healthcheck, SIGTERM drain, compose profiles
+        run: uv run validation/checks/check_container.py
+
+      - name: evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-output
+          path: validation/output/
+          retention-days: 14

@@ -1,0 +1,65 @@
+name: Bug report
+description: Something behaves differently from what the docs or the checks claim
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: `validation/README.md` has a **"What these do not prove"** section. If what
+        you hit is listed there, it is a known gap rather than a bug — but an issue confirming it
+        happens in reality is still valuable, so say so and file it anyway.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Commands, the request you sent, or the page you loaded.
+      placeholder: |
+        docker compose up
+        curl -X POST localhost:8000/collect -d '...'
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: What landed
+      description: |
+        The collector never drops events — if one is missing from `data/events/`, look in
+        `data/bad/`, where it will be sitting with its validation errors attached. Paste the
+        relevant NDJSON line, with anything sensitive removed.
+      render: json
+
+  - type: input
+    id: sink
+    attributes:
+      label: Sink
+      description: The value of MINUANO_SINK_URI (the scheme is what matters, not the bucket name).
+      placeholder: file:///data
+
+  - type: dropdown
+    id: how
+    attributes:
+      label: How are you running it
+      options:
+        - docker compose
+        - uv / local python
+        - deployed somewhere
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: OS and architecture
+      description: This matters more than usual — most of the container behaviour has only been proved on macOS arm64 and Ubuntu x86.
+      placeholder: macOS 15 arm64

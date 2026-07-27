@@ -1,0 +1,51 @@
+name: Design question or proposal
+description: Argue with a decision, or propose something that does not exist yet
+labels: ["design"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most useful kind of issue right now. The event schema is version `0` and can
+        still change, so the design is genuinely open in a way it will not be later.
+
+        **Check `PROJECT.md`'s decision log first.** Most non-obvious choices are recorded there
+        with the alternatives that were rejected and why. If the reasoning is wrong, saying *which
+        part* is wrong is far more useful than restating the choice.
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should be different
+    validations:
+      required: true
+
+  - type: textarea
+    id: existing
+    attributes:
+      label: What the decision log says today
+      description: |
+        Quote the relevant `PROJECT.md` entry if there is one, and say what it got wrong or did not
+        consider. If there is no entry, say that — an undocumented decision is its own problem.
+
+  - type: textarea
+    id: cost
+    attributes:
+      label: What it costs
+      description: |
+        New dependency? New abstraction? A break in one of the `CLAUDE.md` invariants? The project
+        is deliberately boring — five base dependencies, and abstractions only once a second
+        implementation needs them — so the cost side matters as much as the benefit.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Is this in scope
+      description: |
+        Currently out of scope: dashboard, identity resolution, session stitching, deployment
+        manifests. Mobile SDKs are the long-term goal but not started.
+      options:
+        - In scope as far as I can tell
+        - Out of scope today, and I think that is wrong
+        - Not sure
+    validations:
+      required: true

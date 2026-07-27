@@ -27,6 +27,8 @@
 | Sessions | `sql/sessions.sql` | ✅ increment 3 | attribution at session start; 30-min re-derivation as a DQ test |
 | Channel grouping | `sql/channels.sql` | ✅ increment 3 | the reference platform default channel group, ordered CASE, rules from Google's doc |
 | Athena | — | ⬜ blocked | needs the sink pointed at a real bucket; the SQL is written for it |
+| CI | `.github/workflows/ci.yml` | 🔨 increment 5 | all six suites on ubuntu — the first run off macOS |
+| Contributor docs | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/` | ✅ increment 5 | issue + PR templates |
 | Reference pack | `refs/refs.md` | ✅ committed | pre-existing research |
 
 ## Glossary

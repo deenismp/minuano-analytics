@@ -1,5 +1,8 @@
 # minuano
 
+[![checks](https://github.com/deenismp/minuano-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/deenismp/minuano-analytics/actions/workflows/ci.yml)
+[![licence](https://img.shields.io/badge/licence-Apache--2.0-blue.svg)](LICENSE)
+
 Open source user behavior tracking with campaign attribution that works the same way on web,
 Android, and iOS.
 
@@ -165,6 +168,15 @@ precisely so the sandboxed-template route works, since GTM's `sendPixel` API is 
 
 The dashboard is deliberately last. It does not get built until real data has been sitting in
 storage for a week and been queried with Athena.
+
+## Contributing
+
+Opinions are as welcome as code — the schema is version `0`, so the design is still genuinely
+open. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to run and test it, and
+[`PROJECT.md`](PROJECT.md) for why things are the way they are, including the alternatives that
+were rejected. Arguing with a decision-log entry is the most useful issue you can file.
+
+All six suites run in CI on every pull request, on Linux.
 
 ## License
 
