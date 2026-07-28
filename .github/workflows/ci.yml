@@ -52,7 +52,7 @@ jobs:
           raw=$(wc -c < /tmp/minuano.min.js)
           gz=$(gzip -9c /tmp/minuano.min.js | wc -c)
           echo "minified: ${raw} bytes | gzipped: ${gz} bytes"
-          # The budget is transferred bytes -- see docs/spec-increment-1.md for why the
+          # The budget is transferred bytes, not minified bytes -- see the README for why the
           # literal 2KB-minified bar was restated rather than met.
           if [ "$gz" -gt 2048 ]; then echo "::error::gzipped snippet exceeds 2048 bytes"; exit 1; fi
 

@@ -70,8 +70,9 @@ proves nothing.
   against `gs://minuano-demo-raw`, verified live: POST and base64-GET events landed in
   `events/dt=…` with redaction intact, a malformed payload and a bare `GET /collect` landed in
   `bad/…` with their errors, none rejected. Deploying found three defects the whole local suite
-  could not (error.md TRAP-13/14/15) — **a platform you have not deployed to is not a small gap**,
-  the same lesson CI-on-Linux taught in BUG-1.
+  could not — a build argument a source deploy cannot pass, a health path the platform reserves,
+  and a least-privilege role the boot probe had outgrown. **A platform you have not deployed to is
+  not a small gap**, the same lesson CI-on-Linux taught when it found a data-loss bug on run one.
 - **No load.** Buffer behaviour under sustained traffic, and what a flush costs at volume, is
   unmeasured. Concurrency is proved for two instances at six events, which is a collision test,
   not a load test.
@@ -81,7 +82,7 @@ proves nothing.
   exercises it.
 - ~~**The container is proved on one platform.**~~ **Closed 2026-07-27.** CI runs the container
   suite on ubuntu-latest x86 as well as macOS arm64 — and found a data-loss bug on its first run
-  (`error.md` BUG-1). Still unproven: any other architecture, and rootless Docker/Podman.
+  Still unproven: any other architecture, and rootless Docker/Podman.
 - **The channel classifier agrees with an established analytics platform on ≥99.6% of 7.8M real
   events across two independent properties** — 99.6% on one (from 92.9%) and 99.7% on another
   (from 97.6%), measured 2026-07-27 by diffing this macro against that platform's own default

@@ -89,7 +89,8 @@ in `sql/` and Postgres is nowhere.
   already the extension point.
 - **Smallest shippable increments.** Run it end to end before polishing anything.
 - Boring and obvious beats clever.
-- Work is specced on disk before it is built — see `docs/spec-increment-*.md`.
+- Work is specced before it is built. The specs live outside this repo — the public tree
+  carries what a user or contributor needs, not the internal development record.
 - End every response with one concrete next action.
 
 ## Licensing

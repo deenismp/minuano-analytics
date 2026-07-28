@@ -22,7 +22,7 @@ SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema" / "event.v0.json
 
 # Suffix-anchored, so a new upstream field like `magiclink_token` is caught without anyone
 # remembering to add it. An exact-name allowlist is what leaked 51K plaintext tokens in a
-# previous project -- see error.md TRAP-4.
+# previous project.
 SECRET_KEY_PATTERNS = re.compile(r"(token$|apikey|api_key|sessionid|session_id$|secret|password)", re.I)
 REDACTED = "<REDACTED>"
 

@@ -60,7 +60,7 @@ def main() -> int:
     # --- redaction bypasses, all four found live on 2026-07-28 -------------------------
     # Each of these put a secret into the sink in plaintext. The fixtures above did not catch
     # them because every fixture is a well-formed dict with a flat `params` -- the exact shape
-    # the old implementation handled. See error.md, TRAP-18.
+    # the old implementation handled.
     bypasses = [
         ("nested params object",
          lambda: redact({"params": {"auth": {"token": "S"}}})["params"]["auth"]["token"]),

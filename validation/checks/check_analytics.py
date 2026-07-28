@@ -148,7 +148,7 @@ def main() -> int:
     # The fixtures above exercise 8 channels using 5 distinct sources. `channels.sql` has 20
     # branches, and its header says "ORDER IS THE ALGORITHM" -- yet a mutation that hoisted
     # Referral above the organic branches (reintroducing a defect worth 115k events on real
-    # traffic) still passed every check here. A comment is not a test. See error.md, TRAP-19.
+    # traffic) still passed every check here. A comment is not a test.
     #
     # These call the macro directly, so they need no fixture events. The order-sensitive pairs
     # are the point: each one is a case where two branches both match and only position decides.

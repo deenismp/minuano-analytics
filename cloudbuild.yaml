@@ -4,7 +4,7 @@
 # looks like it should, but it only reaches Google Cloud buildpacks; a Dockerfile build ignores it.
 # The collector's `MINUANO_EXTRAS` is a build ARG, so a source deploy produces an image with no
 # cloud backend, and the container refuses to boot against a `gs://` sink. That is not a
-# hypothetical — it is how the first deploy of this service failed. See error.md, TRAP-13.
+# hypothetical -- it is how the first deploy of this service failed.
 #
 # So the build is explicit: build with the arg, push, then `gcloud run deploy --image`.
 #

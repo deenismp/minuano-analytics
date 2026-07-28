@@ -16,11 +16,10 @@
 |---|---|---|---|
 | Event contract | `schema/event.v0.json` | ✅ committed | JSON Schema draft 2020-12, version `0` |
 | Working agreement | `CLAUDE.md` | ✅ committed | invariants live here |
-| Specs | `docs/spec-increment-{1..7}.md` | ✅ committed | checkboxes tracked in-file |
 | Collector | `collector/` | ✅ increment 1 | FastAPI, local writer, non-lossy. 23/23 checks |
 | Validation harness | `validation/` | ✅ increment 5 | 7 runners, 124 checks; the cloud one skips without a bucket |
 | **Live deployment** | Cloud Run `minuano-collector` | ✅ increment 7 | `southamerica-east1`, keyless SA, scale-to-zero, max 3. Proved end to end against a real bucket |
-| Cloud build config | `cloudbuild.yaml` | ✅ increment 7 | exists because `run deploy --source` cannot pass a build ARG (TRAP-13) |
+| Cloud build config | `cloudbuild.yaml` | ✅ increment 7 | exists because `run deploy --source` cannot pass a build ARG |
 | Browser snippet | `snippet/minuano.js` | ✅ increment 1 | zero deps; 2838 min / 1530 gzip / 1296 brotli |
 | Demo page | `demo/demo.html` | ✅ increment 1 | local end-to-end loop |
 | GTM install doc | `docs/install-gtm.md` | ✅ increment 1 | Custom HTML tag + custom-event tag |

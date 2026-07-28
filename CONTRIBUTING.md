@@ -50,8 +50,6 @@ hand-authored value. **Never generate an expectation from the thing being verifi
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | the invariants. Breaking one needs a decision-log entry, not just a passing test |
 | [`PROJECT.md`](PROJECT.md) | what exists and **why it is that way** — the decision log has the alternatives that were rejected |
-| [`error.md`](error.md) | traps. Several exist because something looked broken and wasn't |
-| [`docs/spec-increment-*.md`](docs/) | how each slice was scoped, with its evidence |
 
 The invariants are the short version:
 

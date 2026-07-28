@@ -130,7 +130,8 @@ Sending an event that breaks these rules never loses data: the collector stores 
    aws s3 ls "s3://<bucket>/raw/events/dt=$(date -u +%F)/"           # S3
    ```
 
-   `dt` is the **ingest** date in UTC, not the event date — see error.md, TRAP-9.
+   `dt` is the **ingest** date in UTC, not the event date. Filter on `dt` to prune files and
+   on `event_date` to answer a question, padding `dt` by ±1 day.
 
 ---
 

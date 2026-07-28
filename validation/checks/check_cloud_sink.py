@@ -81,13 +81,13 @@ def main() -> int:
 
         # Booting at all means preflight wrote a probe object -- i.e. real credentials, real IAM,
         # real bucket, all working. (The probe is no longer deleted: the least-privilege role for
-        # this workload grants create without delete. See error.md, TRAP-15.)
+        # this workload grants create without delete.)
         #
         # `booted` is tracked rather than assumed. This was `check(True, ...)` placed after a loop
         # that can fall through on timeout without the process having died -- so the single most
         # important assertion in this file, the one claiming real credentials worked, was
         # structurally incapable of failing. It duly printed PASS on a run where the collector
-        # never came up at all. See error.md, TRAP-17.
+        # never came up at all.
         check(booted, "collector booted, so preflight wrote a probe object to the cloud",
               "" if booted else f"no response on 127.0.0.1:{PORT} within 30s; the process is alive "
                                 "but not serving — usually missing credentials for the sink")

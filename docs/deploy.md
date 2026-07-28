@@ -97,7 +97,7 @@ SDKs already read them.
 
 Scope the credential to *create objects in one prefix* and nothing else. Raw is append-only, so the
 collector never needs read or delete — and on a public endpoint, a key that cannot delete is the
-difference between vandalism and destruction. See error.md, TRAP-15.
+difference between vandalism and destruction.
 
 ### Why one cloud needs code and the other two do not
 
@@ -126,7 +126,7 @@ needs it.
 
 > **Untested paths.** `gs://` is proved against a real bucket. **`s3://` and `az://` have never been
 > written to**, so their credential handling is reasoned-about rather than exercised — see
-> error.md, TRAP-7, which includes the one command that closes the gap for each.
+> the note under "Verifying a deploy anywhere" above -- run the cloud-sink check against each.
 
 ## Verifying a deploy anywhere
 
@@ -138,7 +138,7 @@ curl -s https://<your-host>/health     # /healthz also works on most hosts — s
 > external checks: **Google Cloud Run reserves `/healthz`** and answers it from its own frontend
 > with an HTML 404, so the request never reaches the container and never appears in the logs — a
 > healthy service looks dead. Container-internal probes (Docker's `HEALTHCHECK`, Railway's) are
-> unaffected because they dial `127.0.0.1`, below any platform frontend. See error.md, TRAP-14.
+> unaffected because they dial `127.0.0.1`, below any platform frontend.
 
 `{"status":"ok"}` means the process is up **and** the sink is writable — the collector probes it
 at boot and refuses to start otherwise. `"status":"degraded"` with a `last_error` means events are

@@ -1,5 +1,5 @@
 {
-  "_comment": "Static, hand-authored expectations. The source of truth for the validation contract in docs/spec-increment-1.md. Never generate these from the collector's own output -- the expectation must not come from the mechanism being verified.",
+  "_comment": "Static, hand-authored expectations. The source of truth for the validation contract. Never generate these from the collector's own output -- the expectation must not come from the mechanism being verified.",
   "fixtures": [
     {
       "name": "minimal_valid",
@@ -65,7 +65,7 @@
     {
       "name": "secret_shaped_params_are_redacted",
       "expect": "good",
-      "why": "error.md TRAP-4 -- redact by replacement, never deletion",
+      "why": "redact by replacement, never deletion",
       "assert": { "redacted_params": ["auth_token", "apikey", "magiclink_token"] },
       "event": {
         "schema_version": "0",

@@ -285,7 +285,7 @@ precisely so the sandboxed-template route works, since GTM's `sendPixel` API is 
 The collector has been live on Cloud Run since 2026-07-27, writing to a real bucket. Deploying it
 turned up three defects that no local test could have found — a build argument that a source
 deploy cannot pass, a health path the platform reserves, and a least-privilege IAM role the boot
-probe had quietly outgrown. All three are written up in [`error.md`](error.md).
+probe had quietly outgrown.
 
 The dashboard is deliberately last. It does not get built until real data has been sitting in
 storage for a week and been queried.

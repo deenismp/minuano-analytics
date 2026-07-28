@@ -47,7 +47,7 @@ gcloud iam service-accounts create minuano-collector \
 Then grant it write access to the bucket and nothing else. **`objectCreator`, not `objectAdmin`**:
 the collector only ever PUTs new keys and never reads, so read permission is blast radius with no
 purpose. It does *attempt* one delete — the boot probe cleans up after itself — but that cleanup is
-best-effort by design and its failure is ignored, so `objectCreator` is sufficient. See TRAP-15.
+best-effort by design and its failure is ignored, so `objectCreator` is sufficient.
 
 ```bash
 # IAM change — read it before running.
@@ -60,7 +60,7 @@ gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" \
 `objectCreator` grants create **without delete**, which is what the append-only invariant wants:
 a public, unauthenticated `/collect` should not be able to erase the raw store even if abused.
 The collector's boot probe is written to cooperate with that — it asserts the write and treats
-removing the probe as best-effort, so it does not need `objectAdmin`. See error.md, TRAP-15.
+removing the probe as best-effort, so it does not need `objectAdmin`.
 
 No key is created at any point. That is the whole argument for this host.
 
@@ -71,7 +71,7 @@ in via the `MINUANO_EXTRAS` build ARG, and a source deploy has no way to set one
 `--set-build-env-vars` reaches Google Cloud buildpacks only and is silently ignored by a
 Dockerfile build. The result is an image with no cloud backend, which fails at boot with
 `needs the 'gs' backend, which is not installed`. This is not hypothetical — it is how the first
-deploy of this service failed (error.md, TRAP-13).
+deploy of this service failed.
 
 So build explicitly with `cloudbuild.yaml`, which passes the arg:
 
@@ -126,7 +126,7 @@ curl -s "$URL/health"
 > **Use `/health`, not `/healthz`, on Cloud Run.** `/healthz` is a reserved path: Google's
 > frontend answers it itself with a branded HTML 404, the container never receives the request,
 > and nothing is written to Cloud Logging. A perfectly healthy service looks dead. The collector
-> serves the identical payload on both paths for exactly this reason (error.md, TRAP-14).
+> serves the identical payload on both paths for exactly this reason.
 > Docker's `HEALTHCHECK` and Railway's probe still use `/healthz` and are unaffected — they dial
 > `127.0.0.1` inside the container, below the frontend.
 
