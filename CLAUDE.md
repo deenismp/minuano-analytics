@@ -79,6 +79,36 @@ storage for a week and been queried. Postgres is the right serving store for it 
 comes — it is not the right store for querying raw events, and that distinction is why DuckDB is
 in `sql/` and Postgres is nowhere.
 
+## This repository is public
+
+Treat every commit as permanent and world-readable. A force-push does **not** undo a disclosure:
+the old blob stays fetchable by SHA, and GitHub does not garbage-collect on request. That has
+already happened here twice.
+
+**The rule: the public tree carries what a user or a contributor needs, and nothing else.**
+Everything else stays on disk and gitignored — it is not deleted, it is just not published.
+
+| Belongs in the repo | Stays local |
+|---|---|
+| the contract, collector, snippet, query layer | the development record (`error.md`, increment specs) |
+| deploy runbooks written as templates | anything generated (`docs/gtm-tag-inline.html`) |
+| the validation harness | reading lists, research notes, scratch analysis |
+| `PROJECT.md` — what exists and why | real infrastructure names, endpoints, project ids |
+
+Three specific things, each learned the hard way:
+
+- **No live endpoint URLs.** `/collect` is unauthenticated, so the URL is the closest thing to a
+  credential this project has. Runbooks use `<placeholder>` or `$VAR`, never a real hostname.
+- **No real infrastructure identifiers.** Bucket names, project ids, project numbers. A runbook
+  should read as a template someone else can follow, which is also what makes it good docs.
+- **Generated artefacts are never committed.** They are stamped with one environment's values and
+  go stale silently.
+
+**`validation/checks/check_public_repo.py` enforces all of this and runs first in CI.** It is the
+layer that does not depend on anyone remembering. If it fails, fix it *before* committing — after
+the push is too late. When adding a new kind of private material, add it to that check in the same
+commit, or the next session will not know.
+
 ## How to work here
 
 - **Ask before adding any dependency.** Current set: `fastapi`, `uvicorn`, `jsonschema`, `fsspec`,

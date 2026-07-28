@@ -21,9 +21,9 @@ first. Everything else is reversible.
 ## 1. Project and APIs
 
 ```bash
-export PROJECT=minuano-analytics
+export PROJECT=your-gcp-project
 export REGION=southamerica-east1          # same region as the bucket; do not split them
-export BUCKET=minuano-demo-raw
+export BUCKET=your-bucket
 
 # Enables billing-eligible APIs — run deliberately, not as a reflex.
 # artifactregistry is not optional: it stores the built image. gcloud normally offers to enable

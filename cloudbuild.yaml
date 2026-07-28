@@ -9,7 +9,7 @@
 # So the build is explicit: build with the arg, push, then `gcloud run deploy --image`.
 #
 #   gcloud builds submit --config cloudbuild.yaml \
-#       --substitutions=_EXTRAS=gcp --project=minuano-analytics --region=southamerica-east1
+#       --substitutions=_EXTRAS=gcp --project=$PROJECT --region=$REGION
 #
 # `_EXTRAS` is space-separated and takes any of: aws gcp azure. Empty builds the base image with
 # no cloud SDK at all, which is the Dockerfile's own default and the right one for `file://`.

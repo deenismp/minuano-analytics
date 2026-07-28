@@ -11,6 +11,7 @@ output/     evidence from the last run (gitignored)
 ## Running
 
 ```bash
+uv run validation/checks/check_public_repo.py  # nothing private is tracked (this repo is public)
 uv run validation/checks/check_schema.py     # the contract accepts and rejects what it should
 uv run validation/checks/check_output.py     # what the collector actually wrote to disk
 uv run validation/checks/check_snippet.py    # what the snippet actually sends (needs node)
@@ -67,7 +68,7 @@ proves nothing.
   straight to DuckDB, which needs its own extension (`httpfs`, `azure`) and its own credentials —
   a completely separate path from the writer's, sharing only the URI string. Untested.
 - ~~**Nothing has ever been deployed.**~~ **Closed 2026-07-27** — the collector runs on Cloud Run
-  against `gs://minuano-demo-raw`, verified live: POST and base64-GET events landed in
+  against a real GCS bucket, verified live: POST and base64-GET events landed in
   `events/dt=…` with redaction intact, a malformed payload and a bare `GET /collect` landed in
   `bad/…` with their errors, none rejected. Deploying found three defects the whole local suite
   could not — a build argument a source deploy cannot pass, a health path the platform reserves,

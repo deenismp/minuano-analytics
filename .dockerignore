@@ -4,7 +4,7 @@
 *service-account*.json
 *-credentials*.json
 *-key.json
-minuano-analytics-*.json
+*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].json
 gtm-*.json
 *.pem
 *.key

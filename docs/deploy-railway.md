@@ -14,7 +14,7 @@ Google Cloud console.
 ## 1. The bucket
 
 ```
-Name        minuano-demo-raw
+Name        your-bucket
 Location    a single region, not multi-region (co-locate with your users; multi-region is a
             reflex that costs more and buys nothing here)
 Access      uniform bucket-level, public access prevention on
@@ -54,17 +54,31 @@ the Railway UI — the push updates GitHub and Railway never notices. Either con
 
 ### Variables
 
+The collector's own settings are the same on every host and in every cloud — only the sink URI
+changes scheme:
+
 | Variable | Value |
 |---|---|
-| `MINUANO_SINK_URI` | `gs://minuano-demo-raw/raw` |
-| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | the entire contents of the key JSON |
+| `MINUANO_SINK_URI` | `s3://<bucket>/raw`, `gs://<bucket>/raw`, or `az://<container>/raw` |
 | `MINUANO_CORS_ORIGINS` | your site's origin — not `*` in production |
 | `MINUANO_FLUSH_MAX_SECONDS` | `5` |
 | `PORT` | `8000` |
 
-`GOOGLE_APPLICATION_CREDENTIALS_JSON` must be a **runtime variable, never a build ARG.** Railway
-echoes expanded `RUN` commands into the plaintext build log, which is exactly how a GitHub PAT
-leaked once. The collector writes the value to a `0600` temp file at boot and never logs it.
+**Credentials depend on the cloud, not on Railway.** Railway cannot mint a cloud identity, so this
+is the tier-2 case in [`deploy.md`](deploy.md#credentials) — set your cloud's own standard
+variables and nothing minuano-specific:
+
+| Sink | Add these |
+|---|---|
+| `s3://` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` |
+| `s3://` on R2 / MinIO / Backblaze | the three above, plus `AWS_ENDPOINT_URL` |
+| `gs://` | `GOOGLE_APPLICATION_CREDENTIALS_JSON` — the entire key JSON as one string |
+| `az://` | `AZURE_STORAGE_ACCOUNT_NAME` + `AZURE_STORAGE_ACCOUNT_KEY`, or a connection string |
+
+Whichever you use, it must be a **runtime variable, never a build ARG.** Railway echoes expanded
+`RUN` commands into the plaintext build log, which is exactly how a GitHub PAT leaked once. For
+`gs://`, the collector writes the value to a `0600` temp file at boot and never logs it; AWS and
+Azure SDKs read their variables directly and need no bridge.
 
 Setting any variable triggers a redeploy.
 

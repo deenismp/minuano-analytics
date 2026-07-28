@@ -1,7 +1,7 @@
 # minuano — what exists now, and why it is that way
 
 **Updated:** 2026-07-27
-**Status:** increments 1–7 complete. **Live on Cloud Run**, collecting to `gs://minuano-demo-raw`;
+**Status:** increments 1–7 complete. **Live on Cloud Run**, collecting to a private GCS bucket;
 124 checks passing
 **Repo:** `github.com/deenismp/minuano-analytics` (local directory is still `open-tracking` — rename pending)
 
@@ -17,7 +17,7 @@
 | Event contract | `schema/event.v0.json` | ✅ committed | JSON Schema draft 2020-12, version `0` |
 | Working agreement | `CLAUDE.md` | ✅ committed | invariants live here |
 | Collector | `collector/` | ✅ increment 1 | FastAPI, local writer, non-lossy. 23/23 checks |
-| Validation harness | `validation/` | ✅ increment 5 | 7 runners, 124 checks; the cloud one skips without a bucket |
+| Validation harness | `validation/` | ✅ increment 5 | 8 runners, 140 checks; the cloud one skips without a bucket |
 | **Live deployment** | Cloud Run `minuano-collector` | ✅ increment 7 | `southamerica-east1`, keyless SA, scale-to-zero, max 3. Proved end to end against a real bucket |
 | Cloud build config | `cloudbuild.yaml` | ✅ increment 7 | exists because `run deploy --source` cannot pass a build ARG |
 | Browser snippet | `snippet/minuano.js` | ✅ increment 1 | zero deps; 2838 min / 1530 gzip / 1296 brotli |
@@ -30,7 +30,7 @@
 | Channel grouping | `sql/channels.sql` | ✅ increment 3 | standard default channel group, ordered CASE. **≥99.6% agreement with a reference platform on 7.8M real events, two independent properties** |
 | Athena | — | ⬜ blocked | needs the sink pointed at a real **S3** bucket; the SQL is written for it. The live deployment writes to GCS, so this is no longer blocked on "no cloud data" — only on `s3://` |
 | Deploy docs | `docs/deploy.md` + `deploy-cloud-run.md` + `deploy-railway.md` | ✅ increment 6 | platform contract + two worked examples |
-| CI | `.github/workflows/ci.yml` | ✅ increment 5 | all six suites on ubuntu; found BUG-1 on its first run |
+| CI | `.github/workflows/ci.yml` | ✅ increment 5 | all suites on ubuntu; `check_public_repo` runs first. Found BUG-1 on its first run |
 | Contributor docs | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/` | ✅ increment 5 | issue + PR templates |
 | Reference pack | — | ⬜ removed | `refs/refs.md` was research notes, not a deliverable; removed from the repo 2026-07-27 |
 
