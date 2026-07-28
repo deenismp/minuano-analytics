@@ -113,7 +113,8 @@ cannot read `localStorage` — one storage model works for both install methods.
 
 ### 2. The collector writes it down and gets out of the way
 
-It validates against [`schema/event.v0.json`](schema/event.v0.json), then **stores everything
+It validates against [`schema/event.v0.json`](schema/event.v0.json) — every field is described in
+[`docs/event-reference.md`](docs/event-reference.md) — then **stores everything
 either way**: valid events to `events/dt=…`, invalid ones to `bad/dt=…` with the validation errors
 attached to the original payload. It always answers 2xx. A rejected event is unanswerable forever;
 a stored bad event can be fixed and replayed.
