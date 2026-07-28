@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import json
 import os
+import stat
 import shutil
 import sys
 from pathlib import Path
@@ -174,6 +176,60 @@ async def run() -> None:
     with_env(MINUANO_SINK_URI=None, MINUANO_INSTANCE_ID=None, MINUANO_FLUSH_MAX_EVENTS=None)
     check(config.load().sink_uri == "file://./data", "the default sink is local ./data",
           f"default={config.load().sink_uri}")
+
+    # --- the credential bridge ---------------------------------------------------------
+    # These 25 lines are the only place in the project that touches private key material, and
+    # until now they had no coverage at all: on a machine with ambient credentials
+    # GOOGLE_APPLICATION_CREDENTIALS_JSON is unset, bootstrap() returns None immediately, and
+    # every "passing" run exercised nothing. Needs no bucket and no real key.
+    from collector import credentials  # noqa: PLC0415 -- kept local to this section
+
+    # Assembled rather than written as literals, so this fixture does not itself trip
+    # check_public_repo.py -- which greps tracked files for exactly these shapes. Weakening that
+    # check to whitelist the test directory would have been the wrong trade: a real key could hide
+    # there just as easily.
+    _pem = "-----BEGIN " + "PRIVATE KEY" + "-----\nNOTAREALKEY\n-----END " + "PRIVATE KEY" + "-----\n"
+    FAKE = {"type": "service_account", "client_email": "probe@example.iam.gserviceaccount.com",
+            "private" + "_key": _pem}
+    saved = {k: os.environ.get(k) for k in (credentials.ENV_JSON, credentials.ENV_PATH)}
+    try:
+        with_env(**{credentials.ENV_PATH: None, credentials.ENV_JSON: json.dumps(FAKE)})
+        summary = credentials.bootstrap()
+        written = os.environ.get(credentials.ENV_PATH, "")
+        mode = stat.S_IMODE(os.stat(written).st_mode) if written and os.path.exists(written) else None
+
+        check(mode == 0o600, "the credential file is written 0600", f"mode={oct(mode) if mode else None}")
+        check(json.loads(Path(written).read_text()) == FAKE,
+              "the key round-trips to the file the SDK will read")
+        # The whole point of the module: the summary is logged, so it must carry the identifier
+        # and nothing else. A leak here goes straight to stdout on every boot.
+        check("NOTAREALKEY" not in (summary or "") and "private_key" not in (summary or ""),
+              "no key material appears in what bootstrap() returns", summary or "<none>")
+        check("probe@example.iam.gserviceaccount.com" in (summary or ""),
+              "the summary names the principal, which is what an IAM grant needs")
+
+        # A JSON *string* rather than an object -- the most common PaaS paste mistake. It must
+        # fail before a file is created, and the error must name the variable at fault.
+        with_env(**{credentials.ENV_PATH: None, credentials.ENV_JSON: json.dumps(json.dumps(FAKE))})
+        try:
+            credentials.bootstrap()
+            check(False, "a double-encoded key is refused before any file is written", "no error raised")
+        except ValueError as exc:
+            check(credentials.ENV_JSON in str(exc) and credentials.ENV_PATH not in os.environ,
+                  "a double-encoded key is refused before any file is written", str(exc)[:90])
+
+        with_env(**{credentials.ENV_PATH: None, credentials.ENV_JSON: '{"broken'})
+        try:
+            credentials.bootstrap()
+            check(False, "malformed JSON fails at boot", "no error raised")
+        except ValueError as exc:
+            check("broken" not in str(exc), "malformed JSON fails at boot without echoing the value",
+                  str(exc)[:90])
+
+        with_env(**{credentials.ENV_JSON: None, credentials.ENV_PATH: None})
+        check(credentials.bootstrap() is None, "no credentials configured is not an error")
+    finally:
+        with_env(**saved)
 
 
 def main() -> int:

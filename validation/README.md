@@ -22,7 +22,7 @@ MINUANO_SINK_URI=gs://bucket/raw \\
   uv run --extra gcp validation/checks/check_cloud_sink.py   # a REAL bucket (skips without one)
 ```
 
-117 checks total: 17 + 23 + 16 + 14 + 19 + 28. All of them run in CI on Linux on every pull
+134 checks total: 14 + 17 + 23 + 16 + 21 + 29 + 19, across seven runners. All of them run in CI on Linux on every pull
 request. `check_cloud_sink.py` adds 9 more, and runs only where a real bucket and credentials
 exist — 126 all told.
 
