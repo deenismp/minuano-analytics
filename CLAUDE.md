@@ -96,6 +96,9 @@ code must not be copied. Snowplow's *trackers* are Apache 2.0.
 
 ## Reference material
 
-`refs/refs.md` holds the research pack — the reference platform schema and Measurement Protocol, GTM sandboxed
-JavaScript and template APIs, Snowplow, Matomo's Marketing Campaigns Reporting plugin, plus the
-dashboard design references for step 5.
+The research pack (`refs/refs.md`) was removed from the repo on 2026-07-27 — it was working notes,
+not a deliverable, and a public repo is the wrong home for a reading list. The conclusions that
+mattered are already in `PROJECT.md`'s decision log, which records each one with its source.
+
+When a design question needs an external source, cite it in the decision-log entry rather than
+reintroducing a links file that nobody maintains.

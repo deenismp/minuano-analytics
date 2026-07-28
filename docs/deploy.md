@@ -56,22 +56,89 @@ Two ways out:
 
 ## Credentials
 
-Set the standard variables your cloud's SDK already reads — `AWS_ACCESS_KEY_ID`,
-`AZURE_STORAGE_*`, and so on. Nothing minuano-specific.
+**minuano defines no credential variables of its own.** There is no `MINUANO_S3_KEY`. Each fsspec
+backend resolves credentials through its own cloud's standard chain, which is what makes one
+writer work across every host in this document — and it means the best configuration is usually
+no configuration.
 
-**GCP is the exception**, because Google's libraries want a file path and a PaaS gives you
-strings. Put the whole key JSON in `GOOGLE_APPLICATION_CREDENTIALS_JSON` and the collector writes
-it to a `0600` temp file at boot, never logging it.
+### Tier 1 — the platform can give the container an identity. Set nothing.
 
-If your platform *can* give the workload a cloud identity — Cloud Run service accounts, EKS/GKE
-workload identity, ECS task roles — use that instead and set no credentials at all. A key you
-never create is a key that cannot leak.
+If your host can attach a cloud identity to a running container, use it and configure no
+credentials at all. A key you never create cannot leak, expire, or need rotating.
+
+| Where the container runs | Mechanism | Sink it authenticates |
+|---|---|---|
+| AWS ECS / Fargate | task role (`taskRoleArn`) | `s3://` |
+| AWS EC2, or Docker on an EC2 host | instance profile | `s3://` |
+| AWS EKS | IRSA, or EKS Pod Identity | `s3://` |
+| Google Cloud Run | service identity (`--service-account`) | `gs://` |
+| Google GKE | Workload Identity | `gs://` |
+| Azure Container Apps / Container Instances | managed identity | `az://` |
+| Azure AKS | Workload Identity | `az://` |
+| Any of the above, cross-cloud | Workload Identity Federation | any |
+
+This is what [`deploy-cloud-run.md`](deploy-cloud-run.md) uses, and why no key exists anywhere in
+that deployment.
+
+### Tier 2 — no identity service. Then, and only then, set variables.
+
+Railway, Render, Fly.io, Koyeb, Heroku, a plain VM, `docker run` on your laptop — none of these can
+mint a cloud identity, so the container needs actual credentials. Use the standard variables; the
+SDKs already read them.
+
+| Sink | Variables to set |
+|---|---|
+| `s3://` on AWS | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` (plus `AWS_SESSION_TOKEN` if they are temporary) |
+| `s3://` on R2 / MinIO / Backblaze / Wasabi | the same three, plus `AWS_ENDPOINT_URL` pointing at the provider |
+| `gs://` | `GOOGLE_APPLICATION_CREDENTIALS_JSON` — the whole key JSON as a string. See below |
+| `gs://` with a mounted key file | `GOOGLE_APPLICATION_CREDENTIALS` — a path, as normal |
+| `az://` | `AZURE_STORAGE_ACCOUNT_NAME` + `AZURE_STORAGE_ACCOUNT_KEY`, or `AZURE_STORAGE_CONNECTION_STRING`, or `AZURE_STORAGE_SAS_TOKEN` |
+| `az://` via a service principal | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET` |
+
+Scope the credential to *create objects in one prefix* and nothing else. Raw is append-only, so the
+collector never needs read or delete — and on a public endpoint, a key that cannot delete is the
+difference between vandalism and destruction. See error.md, TRAP-15.
+
+### Why one cloud needs code and the other two do not
+
+`collector/credentials.py` handles GCP and only GCP. That is not a preference, it is the shape of
+the problem:
+
+- **AWS and Azure take strings.** `boto3` and `azure-identity` read their credentials straight out
+  of environment variables. A PaaS hands you environment variables. Nothing to bridge.
+- **Google takes a path.** Application Default Credentials looks for
+  `GOOGLE_APPLICATION_CREDENTIALS`, and that variable must contain a **filesystem path to a key
+  file** — there is no supported way to hand Google's libraries the JSON inline. A PaaS gives you
+  strings and no filesystem to put a key in, so this is the one combination with no native answer.
+
+So the bridge is ~30 lines that do exactly one thing: if `GOOGLE_APPLICATION_CREDENTIALS_JSON`
+holds the raw key, write it to a `0600` temp file at boot — permissions set *before* the write, not
+after — and point the standard variable at it. The contents are never logged; the only thing echoed
+is the `client_email`, which is an identifier you paste into an IAM grant, not a secret.
+
+It is idempotent and deliberately loses to an explicit choice: if `GOOGLE_APPLICATION_CREDENTIALS`
+already points at a real file, that wins and the bridge does nothing. Mounting a secret still works.
+
+The reason it is not a general "credential provider" abstraction is that there is nothing to
+abstract — two of the three clouds need zero code, and building a plugin layer for one case is the
+kind of machinery this project's working agreement rules out until a second implementation actually
+needs it.
+
+> **Untested paths.** `gs://` is proved against a real bucket. **`s3://` and `az://` have never been
+> written to**, so their credential handling is reasoned-about rather than exercised — see
+> error.md, TRAP-7, which includes the one command that closes the gap for each.
 
 ## Verifying a deploy anywhere
 
 ```bash
-curl -s https://<your-host>/healthz
+curl -s https://<your-host>/health     # /healthz also works on most hosts — see the note
 ```
+
+> The collector serves the same payload at `/healthz` and `/health`. Prefer **`/health`** for
+> external checks: **Google Cloud Run reserves `/healthz`** and answers it from its own frontend
+> with an HTML 404, so the request never reaches the container and never appears in the logs — a
+> healthy service looks dead. Container-internal probes (Docker's `HEALTHCHECK`, Railway's) are
+> unaffected because they dial `127.0.0.1`, below any platform frontend. See error.md, TRAP-14.
 
 `{"status":"ok"}` means the process is up **and** the sink is writable — the collector probes it
 at boot and refuses to start otherwise. `"status":"degraded"` with a `last_error` means events are

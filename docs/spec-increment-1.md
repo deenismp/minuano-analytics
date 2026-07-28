@@ -120,5 +120,5 @@ being verified.
 |---|---|
 | **1 (this spec)** | contract, collector on local disk, snippet, GTM Custom HTML install |
 | 2 | S3 writer, `Dockerfile`, `docker-compose.yml` |
-| 3 | Athena over the raw NDJSON — rung 4 of the ladder in `refs/refs.md` |
+| 3 | Athena over the raw NDJSON |
 | later | client-side GTM Custom Template (Community Gallery); server-side GTM tag template; campaign enrichment / channel grouping batch job; mobile SDKs |

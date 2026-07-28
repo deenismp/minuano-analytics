@@ -28,7 +28,6 @@ __pycache__/
 # directories the Dockerfile COPYs; everything else is repository furniture.
 demo/
 docs/
-refs/
 validation/
 .github/
 *.md

@@ -33,7 +33,7 @@
 | Deploy docs | `docs/deploy.md` + `deploy-cloud-run.md` + `deploy-railway.md` | ✅ increment 6 | platform contract + two worked examples |
 | CI | `.github/workflows/ci.yml` | ✅ increment 5 | all six suites on ubuntu; found BUG-1 on its first run |
 | Contributor docs | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/` | ✅ increment 5 | issue + PR templates |
-| Reference pack | `refs/refs.md` | ✅ committed | pre-existing research |
+| Reference pack | — | ⬜ removed | `refs/refs.md` was research notes, not a deliverable; removed from the repo 2026-07-27 |
 
 ## Glossary
 

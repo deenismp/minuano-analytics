@@ -13,7 +13,7 @@ will walk into it)
 **Date:** 2026-07-27 · **Status:** FIXED
 
 The bootstrap brief said *"This is already committed at `schema/event.v0.json`. Read it before
-writing any code."* It was not. The working directory held only `refs/refs.md` and was not a git
+writing any code."* It was not. The working directory held only the research notes and was not a git
 repo; `github.com/deenismp/minuano-analytics` had been created the same day with zero commits.
 
 **Taught:** verify the repo state before trusting a brief's claim about what is on disk. Costs one

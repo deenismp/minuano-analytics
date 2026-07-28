@@ -76,6 +76,76 @@ Two consequences worth stating up front:
   is what makes server-side relays (server-side GTM, future server SDKs) work correctly rather than
   labelling every event with the relay's identity.
 
+## How it works
+
+Three stages. Each one is dumber than the last stage would like, and that is the point: the
+irreversible work happens first and does almost nothing.
+
+### 1. The snippet decides who and when
+
+On first load it generates an `anonymous_id` and stores it in a first-party cookie for two years.
+It reads `utm_source`, `utm_medium`, `utm_campaign`, `utm_content` and `utm_term` off the URL, plus
+`gclid` and `fbclid`, and keeps **two** copies of the campaign:
+
+- **first touch** — whatever brought the visitor here the very first time, stored for two years and
+  never overwritten.
+- **last touch** — the most recent non-empty campaign, refreshed on every visit that carries one,
+  stored for 180 days.
+
+Every event carries one of these, tagged in `campaign.attribution`. A visitor's first-ever event is
+tagged `first_touch`; everything after is `last_touch`. Both models are therefore readable with a
+`WHERE`, instead of being reconstructed with a window function over each visitor's history — and
+first touch cannot be lost by a later visit overwriting it.
+
+A session is a cookie whose lifetime *is* the rule: **30 minutes of inactivity**. Every event
+refreshes it, so the session ends exactly when the visitor stops. It does not reset at midnight and
+does not split when a new campaign arrives mid-visit — a visitor who clicks an ad, wanders off for
+ten minutes and comes back is one session, not three. `session_id` is the unix second the session
+started, which makes it sortable and unique per visitor without a server round trip.
+
+Cookies rather than `localStorage`, because sandboxed tag-manager templates can read cookies and
+cannot read `localStorage` — one storage model works for both install methods.
+
+### 2. The collector writes it down and gets out of the way
+
+It validates against [`schema/event.v0.json`](schema/event.v0.json), then **stores everything
+either way**: valid events to `events/dt=…`, invalid ones to `bad/dt=…` with the validation errors
+attached to the original payload. It always answers 2xx. A rejected event is unanswerable forever;
+a stored bad event can be fixed and replayed.
+
+Two ingest paths, because tag managers constrain you: `POST /collect` takes one event or an array,
+and `GET /collect?e=<base64 JSON>` returns a 1×1 GIF — the only outbound call available inside a
+sandboxed template.
+
+`dt` is the **ingest** date in UTC, not the event date. That is deliberate: a client clock skewed by
+hours must not be able to write into a partition that was already closed. Downstream queries pad by
+±1 day and filter on `event_date` for the real question.
+
+Events buffer in memory for at most 5 seconds (or 100 events), then land as one immutable object
+whose name carries a per-container instance id, so any number of collectors can share a prefix
+without overwriting each other. `SIGTERM` drains the buffer.
+
+Values whose key looks like `…token`, `apikey` or `sessionid` are replaced with `<REDACTED>` —
+replaced, not deleted, so you can still see that the field was sent.
+
+### 3. A batch pass derives the interesting parts
+
+Sessions and channels are computed *later*, over immutable files, by SQL in [`sql/`](sql/):
+
+- **Sessions** are re-derived independently from the 30-minute gap and compared against the
+  `session_id` the client assigned. Agreement is a data-quality signal; disagreement means the
+  snippet's cookie logic broke, and with no browser in the loop it is the only end-to-end check on
+  that logic there is. Session attribution is taken from the session's **first** event, not its
+  last — otherwise a session gets re-credited to whatever the visitor happened to click most
+  recently, which is precisely the case you were asking about.
+- **Channel grouping** is an ordered `CASE` over source and medium: paid search, organic search,
+  paid social, organic social, email, affiliate, referral, direct, and so on. Order is load-bearing
+  — `cpm` matches both the paid-medium pattern and the display rule, and lands on display only
+  because the paid branches are tested first and require a search or social source.
+
+Because this runs over immutable raw files, getting the classification wrong costs a re-run, not a
+month of re-collection. That separation is the single reason the design is shaped this way.
+
 ## Quick start
 
 Docker is the only prerequisite — no Python, no uv, no Node on the host.
