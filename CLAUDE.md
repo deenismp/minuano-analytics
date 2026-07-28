@@ -42,7 +42,11 @@ data model. Standard where being different buys nothing.
 - **Storage is one URI (`MINUANO_SINK_URI`), one writer, any backend.** Do not add a
   per-cloud writer or a second storage variable; fsspec is the abstraction and it is enough.
 - **Raw is append-only, partitioned by ingest date.** Never reorganize a closed partition. A
-  skewed client clock must not be able to write into a past day. Downstream jobs pad ±1 day.
+  skewed client clock must not be able to write into a past day. Padding `dt` by ±1 day is a
+  *performance* optimisation with a measurable loss, **not** a correctness guarantee — real
+  traffic produced an event 166 days behind its ingest, and no fixed pad catches that. Check
+  `health_clock_skew` before trusting a padded `event_date` aggregate; scan unfiltered when
+  completeness matters.
 - **`params` values matching `token$` / `apikey` / `sessionid` are replaced with `<REDACTED>`,
   never dropped.** Redact by replacement so the field's existence stays visible.
 - **`campaign.attribution` distinguishes first-touch from last-touch at the event level**, so it

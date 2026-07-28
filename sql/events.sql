@@ -7,8 +7,22 @@
 -- `dt` is the INGEST date. `event_date` is the event's own date, and the two differ whenever a
 -- client's clock is skewed, a mobile SDK flushes a queue late, or a batch is replayed. Filter on
 -- `dt` to prune files; filter on `event_date` to answer a question about when something happened.
--- Doing the second with the first is the silent-wrong-answer bug this layout is designed around
--- (Boundary-File Padding: pad +/-1 day on `dt` when the question is about `event_date`).
+-- Doing the second with the first is the silent-wrong-answer bug this layout is designed around.
+--
+-- This file used to say "pad +/-1 day on `dt`" as though that made a padded query correct. The
+-- first day of production data falsified it: an event arrived **166 days** behind its ingest, and
+-- no fixed pad catches that. A client clock is attacker-controlled input in all but name -- there
+-- is no upper bound to pick.
+--
+-- So the honest rule, and the one that replaces it:
+--
+--   * padding `dt` is a PERFORMANCE optimisation with a known, measurable loss -- not a
+--     correctness guarantee. On day one +/-1 day would have captured 99.96% of events.
+--   * `health_clock_skew` in `sql/health.sql` measures that loss for YOUR data. Read it before
+--     trusting any padded `event_date` aggregate; if its outer buckets are non-empty, the pad is
+--     dropping rows and the padded number is quietly low.
+--   * when completeness actually matters -- billing, reconciliation, anything published -- scan
+--     without a `dt` filter, or read a layer partitioned by `event_date` instead.
 
 -- The column list is DECLARED, not inferred, and it mirrors schema/event.v0.json.
 --
