@@ -35,7 +35,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__, config, credentials
-from .validate import redact, validate
+from .validate import redact, redact_text, validate
 from .writer import BufferedNDJSONWriter, make_writer
 
 # Transparent 1x1 GIF. `sendPixel` sets an image src and expects image bytes back.
@@ -104,11 +104,14 @@ async def _store(request: Request, payload: Any) -> tuple[int, int]:
     dt = ingested_at[:10]
 
     if not isinstance(payload, dict):
+        # Redact BEFORE storing. This branch used to store the payload verbatim, which made
+        # "not a JSON object" the one shape that bypassed redaction entirely -- a nested list
+        # or a bare string carrying an apikey landed in `bad/` in plaintext.
         await writer.append("bad", dt, {
             "ingested_at": ingested_at,
             "collector_instance": CFG.instance_id,
             "errors": [f"event must be a JSON object, got {type(payload).__name__}"],
-            "payload": payload,
+            "payload": redact(payload),
         })
         return 0, 1
 
@@ -148,7 +151,9 @@ async def _store_unparseable(request: Request, body: bytes, reason: str) -> None
         "ingested_at": ingested_at,
         "collector_instance": CFG.instance_id,
         "errors": [reason],
-        "payload_raw": body.decode("utf-8", errors="replace")[:4096],
+        # A truncated beacon is exactly how a live key reaches `bad/`. Storing the body
+        # verbatim made this the only route with no redaction at all.
+        "payload_raw": redact_text(body.decode("utf-8", errors="replace")[:4096]),
     })
 
 

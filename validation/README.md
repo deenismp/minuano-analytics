@@ -98,7 +98,7 @@ proves nothing.
     because `pinterest` matches as a substring. The Google-property class (`docs.`, `mail.`,
     `accounts.`, `gemini.`) is now handled by `is_engine_product()`. What remains needs a managed
     host list, which is the thing a seed list deliberately is not.
-  Nine hand-authored fixtures still guard each branch; the real sample is what found the gaps.
+  A table-driven case list guards every branch and each order-sensitive pair; the real sample is what found the gaps.
 - **The SQL has never run on Athena.** It is written to port — one path change — but Trino and
   DuckDB disagree on enough (struct access, `arg_min`, `date_diff` argument order, regex flavour)
   that "ports cleanly" is a claim, not a result, until it runs there.

@@ -324,6 +324,93 @@ literal-true assertion is either documentation pretending to be a test, or a hol
 shape. The failure mode is silent and permanent, because a check that always passes never asks
 to be looked at.
 
+## BUG-2 — Four of five storage paths wrote secrets to the sink in plaintext
+
+**Date:** 2026-07-28 · **Status:** FIXED · **Found by:** a security review of the live service
+
+The invariant says secret-shaped `params` values are replaced with `<REDACTED>`. It held for
+exactly one shape: a well-formed dict with a flat `params`. Verified live against a running
+collector — five probe secrets sent, **five landed in plaintext on disk**:
+
+| Payload | Why it bypassed |
+|---|---|
+| `params: {auth: {token: …}}` | `redact()` walked only the top level of `params` |
+| `[[{"params": {"apikey": …}}]]` | `_collect` unwraps one list level; the inner list is not a dict, so `_store` stored it before `redact()` was reached |
+| `"apikey=…"` (bare JSON string) | same non-dict branch |
+| `{"params":{"apikey":…},` (truncated) | `_store_unparseable` stored `payload_raw` verbatim, never redacted |
+| `params: {"x-api-key": …}` | the pattern covers `apikey` and `api_key` but not the hyphenated spelling — the most common one on the wire |
+
+The `x-api-key` miss is the sharpest: the denylist names that exact secret and let the usual
+spelling through. A control key `TOKEN` in the same request *was* redacted, which is what makes
+the gap so easy to miss — the feature demonstrably works.
+
+**Severity:** this is TRAP-4 reproducing itself. That trap exists because an allowlist leaked 51K
+plaintext tokens in a previous project; the fix was a suffix-anchored denylist, and the denylist
+then had four holes. The endpoint is public and unauthenticated, and the sink is append-only
+under `objectCreator` — so a secret that lands there **cannot be deleted**, only waited out.
+
+**Fix:** redaction is now a property of *storage*, not of event shape. `redact()` recurses through
+dicts and lists to any depth and accepts any payload type; keys are normalised
+(`re.sub(r"[^a-z0-9]", "", key.lower())`) before matching, so `x-api-key`, `API Key` and `api.key`
+all collapse onto spellings the pattern already covers; and `redact_text()` scrubs secret-shaped
+assignments out of unparseable bodies. Every storage path calls one of them.
+
+**Taught:** fixtures written alongside an implementation test the shape its author imagined. All
+three redaction fixtures were flat dicts, so 100% of them passed against an implementation with
+four holes. When a check protects an invariant, the cases have to come from the *threat*, not from
+the happy path — `check_schema.py` now asserts each bypass explicitly.
+
+## BUG-3 — "ORDER IS THE ALGORITHM" was enforced by a comment, and `x.com` matched `netflix.com`
+
+**Date:** 2026-07-28 · **Status:** FIXED · **Found by:** a review of the sample-derived range
+
+Two defects in `sql/channels.sql`, both silent by construction — neither can ever raise an error.
+
+**1. Nothing tested the CASE ordering.** The header says *"Reordering this CASE changes the numbers
+without changing any rule."* A mutation that made the Organic Video branch unreachable — exactly
+the 115k-event defect a previous session had fixed — still passed **28/28**. The fixtures use five
+distinct sources and reach eight of twenty branches; every branch added by the sample-driven
+rewrite (Cross-network, Paid/Organic Shopping, Paid/Organic Video, AI Assistant, Affiliates, Audio,
+SMS, Mobile Push) had **zero coverage**. `validation/README.md` meanwhile claimed *"Nine
+hand-authored fixtures still guard each branch"*, which was false and was the sentence that would
+stop anyone from checking.
+
+That mattered more than usual: the justifying sample is not in the repo and cannot be re-run, so
+the fixture set was the only durable record of the rewrite — and it did not record it.
+
+**2. `x\.com` sat in the substring regex, not the exact-match list.** Verified:
+`netflix.com`, `wix.com`, `citrix.com` and `phoenix.com` all classified as **Organic Social**. The
+header explicitly designs against this — *"Short names (`fb`, `ig`, `x`) match EXACTLY, because a
+substring `ig` would match almost anything"* — and then one member was filed in the wrong half.
+Worse than the known `pinterest.lightning.force.com` case, because these are ordinary referrers.
+
+Also fixed: `is_engine_product()` was anchored with `^`, so `www.docs.google.com` bypassed it and
+became Organic Search; the product list missed `news`/`maps`/`cloud`/`scholar`/`analytics`; and
+nothing was `trim()`ed, so `'fb '` fell through every exact-match list.
+
+**Fix:** a table-driven case list in `check_analytics.py` — 23 rows covering every branch plus the
+five order-sensitive pairs, calling the macro directly so it needs no fixture events. **Proven by
+mutation:** removing `youtube` from the video branches, disabling the Organic Video branch, and
+re-introducing the `x\.com` substring each now turn the suite red. Before, all three passed.
+
+**Taught:** when a file's own comment says a property is load-bearing, that is the property most
+worth asserting — the comment is evidence the author knew it was fragile and stopped one step
+short. And a test suite that grew alongside a classifier tests the branches its author was
+thinking about, which is never the ones that break.
+
+## TRAP-18 — Reviewing only the current session's diff leaves the riskiest code unread
+
+**Date:** 2026-07-28 · **Status:** noted
+
+The first code review of this project was scoped to one session's diff. That silently excluded
+`collector/credentials.py` (53 lines handling private key material, shipped straight to a live
+deployment) and the rewrite of `sql/channels.sql` from sample data that is not in the repo and
+cannot be re-run.
+
+**Taught:** scope a review by *risk*, not by recency. Code derived from a careful analysis
+inherits the analysis's credibility without having earned it — and code that has never been read
+by anyone but its author is the code most worth reading, regardless of when it was written.
+
 ## TRAP-5 — Base64 GET payloads land in access logs and hit proxy length caps
 
 **Date:** 2026-07-27 · **Status:** OPEN, accepted for v0

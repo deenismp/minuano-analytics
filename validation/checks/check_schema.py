@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from collector.validate import redact, validate  # noqa: E402
+from collector.validate import redact, redact_text, validate  # noqa: E402
 
 FIXTURES = ROOT / "validation" / "cases" / "fixtures.json"
 
@@ -56,6 +56,36 @@ def main() -> int:
                 failures.append(f"{fixture['name']}/{key}")
         kept = [k for k in params if k not in expected_keys]
         print(f"         └─ non-secret params kept: {kept}")
+
+    # --- redaction bypasses, all four found live on 2026-07-28 -------------------------
+    # Each of these put a secret into the sink in plaintext. The fixtures above did not catch
+    # them because every fixture is a well-formed dict with a flat `params` -- the exact shape
+    # the old implementation handled. See error.md, TRAP-18.
+    bypasses = [
+        ("nested params object",
+         lambda: redact({"params": {"auth": {"token": "S"}}})["params"]["auth"]["token"]),
+        ("hyphenated key name (x-api-key)",
+         lambda: redact({"params": {"x-api-key": "S"}})["params"]["x-api-key"]),
+        ("secret inside a list value",
+         lambda: redact({"params": {"items": [{"apikey": "S"}]}})["params"]["items"][0]["apikey"]),
+        ("payload that is a list, not a dict",
+         lambda: redact([{"params": {"apikey": "S"}}])[0]["params"]["apikey"]),
+    ]
+    for name, probe in bypasses:
+        try:
+            ok = probe() == "<REDACTED>"
+        except Exception as exc:  # a shape change should fail loudly, not silently pass
+            ok, name = False, f"{name} (raised {type(exc).__name__})"
+        print(f"[{'PASS' if ok else 'FAIL'}] redaction bypass closed: {name}")
+        if not ok:
+            failures.append(f"bypass/{name}")
+
+    raw = redact_text('{"params":{"apikey":"S","plan":"keep me",')
+    ok = "S" not in raw.replace("<REDACTED>", "") and "keep me" in raw
+    print(f"[{'PASS' if ok else 'FAIL'}] redaction bypass closed: unparseable body (payload_raw)")
+    print(f"         └─ {raw}")
+    if not ok:
+        failures.append("bypass/payload_raw")
 
     print(f"\n{'FAILED: ' + ', '.join(failures) if failures else 'ALL CHECKS PASSED'}")
     return 1 if failures else 0

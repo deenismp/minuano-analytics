@@ -45,9 +45,11 @@ afterwards by guessing at session ordering.
 grouping runs as a separate pass over immutable files. Get the classification wrong and you re-run
 it; you don't re-collect a month of traffic.
 
-**Sessions and channels follow the published rules the industry already standardised on** — a
-30-minute inactivity window, attribution taken at the session's first event — so the numbers mean
-what people already expect them to mean, without the data leaving infrastructure you control.
+**Sessions and channels follow the rules the industry already standardised on** — a 30-minute
+inactivity window, attribution taken at the session's first event — so the numbers mean what
+people already expect them to mean, without the data leaving infrastructure you control. Being
+boringly conventional here is what buys the freedom to be different where it counts: the
+cross-platform attribution nobody else does.
 
 Being straight about the hard part: the event contract handles web and Android today, and **iOS
 attribution does not fit it yet** — Apple's numeric Search Ads IDs have no home in a
@@ -57,8 +59,11 @@ shaped around; neither one is built.
 
 ## Design
 
-The data model deliberately copies the one the major analytics platforms converged on, rather than
-inventing a third way.
+minuano is not a re-implementation of an existing analytics product. It exists to close a gap
+none of them close — campaign attribution that stays consistent as a person crosses from web to
+Android to iOS. The event model is the industry-standard shape *on purpose*, because a new model
+would make the output incomparable to what teams already have, and incomparable numbers do not
+get adopted. Standard where being different buys nothing; different where the gap is.
 
 1. **Every row is an event, not a session.** Sessions are derived downstream.
 2. **Collection does no enrichment.** The established pattern leaves traffic-source fields empty in

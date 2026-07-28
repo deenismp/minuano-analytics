@@ -47,7 +47,7 @@ VOLUME ["/data"]
 # pinned to 8000 would report a correctly-serving container unhealthy forever. Cloud Run injects
 # PORT=8080 by default, so this is not hypothetical.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-    CMD python -c "import os,urllib.request,sys; port=os.environ.get('PORT','8000'); sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=2).status==200 else 1)"
+    CMD python -c "import os,urllib.request,sys; port=os.environ.get('PORT') or '8000'; sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=2).status==200 else 1)"
 
 # `exec` matters as much as the port does: it replaces the shell so uvicorn is still PID 1 and
 # receives SIGTERM directly. That signal is the flush -- uvicorn turns it into a lifespan

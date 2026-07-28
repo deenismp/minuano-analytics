@@ -16,7 +16,11 @@ a limited-use license. Nobody does best-in-class cross-platform campaign attribu
 
 ## Design principles
 
-Copied deliberately from the model the major analytics platforms converged on.
+**minuano is not a clone of an existing analytics product.** It is a new project aimed at a gap
+that none of them fill — campaign attribution that survives the web → Android → iOS boundary. The
+event model below is deliberately the industry-standard shape, because output nobody can compare
+to their existing numbers does not get adopted; the differentiation is in the gap, not in the
+data model. Standard where being different buys nothing.
 
 1. **Every row is an event, not a session.** Sessions are derived downstream.
 2. **Collection does no enrichment.** The reference model leaves traffic-source fields empty in its streaming

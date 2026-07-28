@@ -36,100 +36,100 @@
 -- across two properties before it was measured. Kept as a separate macro so both the Paid Search
 -- and Organic Search branches use the identical test.
 CREATE OR REPLACE MACRO is_engine_product(src) AS (
-    regexp_matches(lower(coalesce(src, '')),
-        '^(accounts|mail|docs|keep|drive|calendar|gemini|notebooklm|sites|groups|translate|photos|meet|chat|classroom|myaccount|support|play|store|business|partner|script)\.')
-    OR regexp_matches(lower(coalesce(src, '')), '(googleusercontent|googleadservices|googletagmanager)')
+    regexp_matches(trim(lower(coalesce(src, ''))),
+        '(^|\.|//)(accounts|mail|docs|keep|drive|calendar|gemini|notebooklm|sites|groups|translate|photos|meet|chat|classroom|myaccount|support|play|store|business|partner|script|news|maps|books|scholar|analytics|cloud|developers|firebase|console|admin|forms|contacts|earth|domains|adsense)\.')
+    OR regexp_matches(trim(lower(coalesce(src, ''))), '(googleusercontent|googleadservices|googletagmanager)')
 );
 
 CREATE OR REPLACE MACRO channel_group(src, med, camp) AS (
     CASE
         -- Cross-network: campaign name signals it, regardless of source or medium.
-        WHEN lower(coalesce(camp, '')) LIKE '%cross-network%'
+        WHEN trim(lower(coalesce(camp, ''))) LIKE '%cross-network%'
             THEN 'Cross-network'
 
         -- ---- paid branches: a paid medium plus a source we can classify -------------------
-        WHEN regexp_matches(lower(coalesce(med, '')), '^(.*cp.*|ppc|retargeting|paid.*)$')
-             AND (regexp_matches(lower(coalesce(src, '')),
+        WHEN regexp_matches(trim(lower(coalesce(med, ''))), '^(.*cp.*|ppc|retargeting|paid.*)$')
+             AND (regexp_matches(trim(lower(coalesce(src, ''))),
                      '(amazon|ebay|shopify|etsy|walmart|mercadolivre|mercadolibre|shopee|alibaba|aliexpress)')
-                  OR lower(coalesce(med, '')) LIKE '%shopping%')
+                  OR trim(lower(coalesce(med, ''))) LIKE '%shopping%')
             THEN 'Paid Shopping'
 
-        WHEN regexp_matches(lower(coalesce(med, '')), '^(.*cp.*|ppc|retargeting|paid.*)$')
-             AND regexp_matches(lower(coalesce(src, '')),
+        WHEN regexp_matches(trim(lower(coalesce(med, ''))), '^(.*cp.*|ppc|retargeting|paid.*)$')
+             AND regexp_matches(trim(lower(coalesce(src, ''))),
                      '(google|bing|yahoo|duckduckgo|baidu|yandex|ecosia|msn|ask\.com|aol|brave|qwant|startpage|naver|seznam)')
              AND NOT is_engine_product(src)
             THEN 'Paid Search'
 
-        WHEN regexp_matches(lower(coalesce(med, '')), '^(.*cp.*|ppc|retargeting|paid.*)$')
-             AND (regexp_matches(lower(coalesce(src, '')),
-                     '(facebook|instagram|linkedin|twitter|x\.com|tiktok|pinterest|reddit|threads|snapchat|whatsapp|telegram|kwai|tumblr|quora)')
-                  OR lower(coalesce(src, '')) IN ('fb', 'ig', 'meta', 'x', 'li', 'tt', 'wpp'))
+        WHEN regexp_matches(trim(lower(coalesce(med, ''))), '^(.*cp.*|ppc|retargeting|paid.*)$')
+             AND (regexp_matches(trim(lower(coalesce(src, ''))),
+                     '(facebook|instagram|linkedin|twitter|tiktok|pinterest|reddit|threads|snapchat|whatsapp|telegram|kwai|tumblr|quora)')
+                  OR trim(lower(coalesce(src, ''))) IN ('fb', 'ig', 'meta', 'x', 'x.com', 'li', 'tt', 'wpp'))
             THEN 'Paid Social'
 
-        WHEN regexp_matches(lower(coalesce(med, '')), '^(.*cp.*|ppc|retargeting|paid.*)$')
-             AND (regexp_matches(lower(coalesce(src, '')), '(youtube|vimeo|twitch|dailymotion)')
-                  OR lower(coalesce(src, '')) IN ('yt'))
+        WHEN regexp_matches(trim(lower(coalesce(med, ''))), '^(.*cp.*|ppc|retargeting|paid.*)$')
+             AND (regexp_matches(trim(lower(coalesce(src, ''))), '(youtube|vimeo|twitch|dailymotion)')
+                  OR trim(lower(coalesce(src, ''))) IN ('yt'))
             THEN 'Paid Video'
 
         -- Display: medium says so. After the paid branches, so `cpm` from a known social source
         -- is Paid Social and `cpm` from anywhere else is Display.
-        WHEN lower(coalesce(med, '')) IN ('display', 'banner', 'expandable', 'interstitial', 'cpm')
+        WHEN trim(lower(coalesce(med, ''))) IN ('display', 'banner', 'expandable', 'interstitial', 'cpm')
             THEN 'Display'
 
         -- Paid Other: a paid medium we could not attribute to a known platform. Better than
         -- Unassigned -- it at least keeps paid traffic out of the organic numbers.
-        WHEN regexp_matches(lower(coalesce(med, '')), '^(.*cp.*|ppc|retargeting|paid.*)$')
+        WHEN regexp_matches(trim(lower(coalesce(med, ''))), '^(.*cp.*|ppc|retargeting|paid.*)$')
             THEN 'Paid Other'
 
         -- ---- organic branches ---------------------------------------------------------------
-        WHEN regexp_matches(lower(coalesce(src, '')),
+        WHEN regexp_matches(trim(lower(coalesce(src, ''))),
                  '(amazon|ebay|shopify|etsy|walmart|mercadolivre|mercadolibre|shopee|alibaba|aliexpress)')
-             OR lower(coalesce(med, '')) LIKE '%shopping%'
+             OR trim(lower(coalesce(med, ''))) LIKE '%shopping%'
             THEN 'Organic Shopping'
 
-        WHEN regexp_matches(lower(coalesce(src, '')),
-                 '(facebook|instagram|linkedin|twitter|x\.com|tiktok|pinterest|reddit|threads|snapchat|whatsapp|telegram|kwai|tumblr|quora)')
-             OR lower(coalesce(src, '')) IN ('fb', 'ig', 'meta', 'x', 'li', 'tt', 'wpp')
-             OR lower(coalesce(med, '')) IN
+        WHEN regexp_matches(trim(lower(coalesce(src, ''))),
+                 '(facebook|instagram|linkedin|twitter|tiktok|pinterest|reddit|threads|snapchat|whatsapp|telegram|kwai|tumblr|quora)')
+             OR trim(lower(coalesce(src, ''))) IN ('fb', 'ig', 'meta', 'x', 'x.com', 'li', 'tt', 'wpp')
+             OR trim(lower(coalesce(med, ''))) IN
                  ('social', 'social-network', 'social-media', 'sm', 'social network', 'social media')
             THEN 'Organic Social'
 
-        WHEN regexp_matches(lower(coalesce(src, '')), '(youtube|vimeo|twitch|dailymotion)')
-             OR lower(coalesce(src, '')) IN ('yt')
-             OR regexp_matches(lower(coalesce(med, '')), '^(video|.*video.*)$')
+        WHEN regexp_matches(trim(lower(coalesce(src, ''))), '(youtube|vimeo|twitch|dailymotion)')
+             OR trim(lower(coalesce(src, ''))) IN ('yt')
+             OR regexp_matches(trim(lower(coalesce(med, ''))), '^(video|.*video.*)$')
             THEN 'Organic Video'
 
-        WHEN (regexp_matches(lower(coalesce(src, '')),
+        WHEN (regexp_matches(trim(lower(coalesce(src, ''))),
                   '(google|bing|yahoo|duckduckgo|baidu|yandex|ecosia|msn|ask\.com|aol|brave|qwant|startpage|naver|seznam)')
               AND NOT is_engine_product(src))
-             OR lower(coalesce(med, '')) = 'organic'
+             OR trim(lower(coalesce(med, ''))) = 'organic'
             THEN 'Organic Search'
 
         -- AI Assistant: the reference added this channel as LLM referrals became material. In the sample
         -- it was 5,598 events that we were sending to Unassigned.
-        WHEN regexp_matches(lower(coalesce(src, '')),
+        WHEN regexp_matches(trim(lower(coalesce(src, ''))),
                  '(chatgpt|openai|perplexity|copilot|gemini|claude\.ai|anthropic)')
-             OR regexp_matches(lower(coalesce(med, '')), '(ai.?assistant|ai.?chat)')
+             OR regexp_matches(trim(lower(coalesce(med, ''))), '(ai.?assistant|ai.?chat)')
             THEN 'AI Assistant'
 
         -- ---- everything else ------------------------------------------------------------------
-        WHEN regexp_matches(lower(coalesce(src, '')), '^(email|e-mail|e_mail|e mail)$')
-             OR regexp_matches(lower(coalesce(med, '')), '^(email|e-mail|e_mail|e mail|newsletter)$')
+        WHEN regexp_matches(trim(lower(coalesce(src, ''))), '^(email|e-mail|e_mail|e mail)$')
+             OR regexp_matches(trim(lower(coalesce(med, ''))), '^(email|e-mail|e_mail|e mail|newsletter)$')
             THEN 'Email'
 
-        WHEN lower(coalesce(med, '')) = 'affiliate'
+        WHEN trim(lower(coalesce(med, ''))) = 'affiliate'
             THEN 'Affiliates'
 
-        WHEN lower(coalesce(med, '')) = 'audio'
+        WHEN trim(lower(coalesce(med, ''))) = 'audio'
             THEN 'Audio'
 
-        WHEN lower(coalesce(src, '')) = 'sms' OR lower(coalesce(med, '')) = 'sms'
+        WHEN trim(lower(coalesce(src, ''))) = 'sms' OR trim(lower(coalesce(med, ''))) = 'sms'
             THEN 'SMS'
 
-        WHEN regexp_matches(lower(coalesce(med, '')), '(mobile|notification|push)')
+        WHEN regexp_matches(trim(lower(coalesce(med, ''))), '(mobile|notification|push)')
             THEN 'Mobile Push Notifications'
 
-        WHEN lower(coalesce(med, '')) IN ('referral', 'app', 'link')
+        WHEN trim(lower(coalesce(med, ''))) IN ('referral', 'app', 'link')
             THEN 'Referral'
 
         -- Direct: no source and no medium. Raw NULLs become the standard sentinels here.

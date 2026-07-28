@@ -35,13 +35,19 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregi
 ## 2. A service account for the collector — no key
 
 ```bash
+# The build pushes here. `gcloud run deploy --source` would create this repo implicitly, but §3
+# deliberately does not use --source, and `builds submit --config` does not auto-create it.
+gcloud artifacts repositories create cloud-run-source-deploy \
+    --repository-format=docker --location="$REGION" --project="$PROJECT" --quiet
+
 gcloud iam service-accounts create minuano-collector \
     --display-name="minuano collector" --project="$PROJECT" --quiet
 ```
 
 Then grant it write access to the bucket and nothing else. **`objectCreator`, not `objectAdmin`**:
-the collector only ever PUTs new keys — it never reads and never deletes, so read or delete
-permission is blast radius with no purpose.
+the collector only ever PUTs new keys and never reads, so read permission is blast radius with no
+purpose. It does *attempt* one delete — the boot probe cleans up after itself — but that cleanup is
+best-effort by design and its failure is ignored, so `objectCreator` is sufficient. See TRAP-15.
 
 ```bash
 # IAM change — read it before running.
@@ -71,7 +77,7 @@ So build explicitly with `cloudbuild.yaml`, which passes the arg:
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml \
-    --substitutions=_EXTRAS=gcp \
+    --substitutions=_EXTRAS=gcp,_REGION=$REGION \
     --project="$PROJECT" --region="$REGION" --quiet
 ```
 

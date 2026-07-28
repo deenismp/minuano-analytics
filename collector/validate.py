@@ -64,18 +64,69 @@ def validate(event: Any) -> list[str]:
     return errors
 
 
+def _looks_secret(key: Any) -> bool:
+    """Match the pattern against a *normalised* key, so punctuation cannot smuggle one past.
+
+    `x-api-key` is the most common on-the-wire spelling of the very thing `apikey` is trying to
+    catch, and it used to sail straight through -- the raw pattern sees `api-key`, which is
+    neither `apikey` nor `api_key`. Stripping non-alphanumerics first makes `x-api-key`,
+    `API Key`, `api.key` and `X_API_KEY` all collapse onto a spelling the list already covers.
+    """
+    return bool(SECRET_KEY_PATTERNS.search(re.sub(r"[^a-z0-9]", "", str(key).lower())))
+
+
+def _redact_in_place(node: Any) -> None:
+    """Walk dicts and lists to any depth, replacing secret-shaped values."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if _looks_secret(key) and value not in (None, "", {}, []):
+                node[key] = REDACTED
+            else:
+                _redact_in_place(value)
+    elif isinstance(node, list):
+        for item in node:
+            _redact_in_place(item)
+
+
+# Secret-shaped assignments inside a string we could not parse: `"token": "x"`, `apikey=x`.
+# Deliberately greedy about key shape and conservative about value terminators.
+_RAW_SECRET = re.compile(
+    r"""(?P<key>[A-Za-z0-9_.\-]*"""
+    r"""(?:token|apikey|api[_.\-]key|sessionid|session[_.\-]id|secret|password)"""
+    r"""[A-Za-z0-9_.\-]*)"""
+    r"""(?P<sep>"?\s*[:=]\s*"?)"""
+    r"""(?P<value>[^"'&,}\s]+)""",
+    re.I | re.X,
+)
+
+
+def redact_text(text: str) -> str:
+    """Redact secret-shaped assignments in a string that is not parseable as an event.
+
+    A body that fails to parse is still stored -- that is the non-lossy guarantee -- and a
+    truncated beacon is exactly how a live key ends up in `bad/`. Storing it verbatim made the
+    unparseable path the one route with no redaction at all.
+    """
+    return _RAW_SECRET.sub(lambda m: f"{m.group('key')}{m.group('sep')}{REDACTED}", text)
+
+
 def redact(event: Any) -> Any:
-    """Replace secret-shaped `params` values in place. Replacement, never deletion.
+    """Replace secret-shaped values in place. Replacement, never deletion.
 
     Deleting the key would hide the fact that the field was ever sent; anti-pattern #6 says
     redact by replacement so the context survives.
+
+    Recurses, and accepts any payload shape rather than only a dict with a dict `params`.
+    Both limits were real holes: `params.auth.token` was stored in plaintext because the walk
+    stopped at the top level, and a payload that was a bare string or a nested list skipped
+    redaction entirely because it never reached this function's dict branch.
     """
-    if not isinstance(event, dict):
+    if isinstance(event, str):
+        return redact_text(event)
+    if isinstance(event, dict):
+        params = event.get("params")
+        if params is not None:
+            _redact_in_place(params)
         return event
-    params = event.get("params")
-    if not isinstance(params, dict):
-        return event
-    for key in list(params):
-        if SECRET_KEY_PATTERNS.search(str(key)) and params[key] not in (None, ""):
-            params[key] = REDACTED
+    _redact_in_place(event)
     return event

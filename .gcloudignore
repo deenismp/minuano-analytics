@@ -31,3 +31,20 @@ docs/
 validation/
 .github/
 *.md
+
+# Credential filenames the hyphen-prefixed patterns above do NOT match. `credentials.json` is the
+# literal name of Google's OAuth client download, and `key.json` is what
+# `gcloud iam service-accounts keys create` writes by default -- the two most likely credential
+# files to appear in a repo, and both were unignored until 2026-07-28. This repo is public.
+credentials.json
+credentials-*.json
+client_secret*.json
+*service_account*.json
+*_service_account*.json
+key.json
+*key.json
+application_default_credentials.json
+*secret*.json
+id_rsa*
+id_ed25519*
+*.p8

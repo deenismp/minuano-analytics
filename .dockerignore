@@ -23,3 +23,34 @@ docs/
 .DS_Store
 __pycache__/
 *.py[cod]
+
+# Docker matches these with filepath.Match, where `*` does NOT cross a `/` -- unlike git and
+# gcloud, which are recursive. So every credential pattern is listed twice: bare for the repo
+# root, and `**/`-prefixed for subdirectories. Without the second form a key in any subdirectory
+# enters the build context, which is exactly what this file exists to prevent.
+credentials*.json
+**/credentials*.json
+client_secret*.json
+**/client_secret*.json
+*service_account*.json
+**/*service_account*.json
+*key.json
+**/*key.json
+application_default_credentials.json
+**/application_default_credentials.json
+*secret*.json
+**/*secret*.json
+id_rsa*
+**/id_rsa*
+id_ed25519*
+**/id_ed25519*
+*.p8
+**/*.p8
+*.pem
+**/*.pem
+*.key
+**/*.key
+.env
+**/.env
+.env.*
+**/.env.*

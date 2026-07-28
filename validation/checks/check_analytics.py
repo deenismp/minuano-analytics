@@ -144,6 +144,49 @@ def main() -> int:
     check(con.sql("SELECT count(*) FROM sessions WHERE channel = 'Unassigned'").fetchone()[0] == 0,
           "no fixture fell through to Unassigned")
 
+    # --- the classifier itself, branch by branch ---------------------------------------
+    # The fixtures above exercise 8 channels using 5 distinct sources. `channels.sql` has 20
+    # branches, and its header says "ORDER IS THE ALGORITHM" -- yet a mutation that hoisted
+    # Referral above the organic branches (reintroducing a defect worth 115k events on real
+    # traffic) still passed every check here. A comment is not a test. See error.md, TRAP-19.
+    #
+    # These call the macro directly, so they need no fixture events. The order-sensitive pairs
+    # are the point: each one is a case where two branches both match and only position decides.
+    cases = [
+        # (source, medium, campaign, expected)               # why this row exists
+        ("google", "cpc", None, "Paid Search"),
+        ("google", "organic", None, "Organic Search"),
+        ("google", "cpm", None, "Paid Search"),              # order: paid beats Display
+        ("zzz", "cpm", None, "Display"),                     # order: Display is the fallback for cpm
+        ("facebook", "cpc", None, "Paid Social"),            # order: paid social beats organic
+        ("facebook", "referral", None, "Organic Social"),
+        ("youtube", "referral", None, "Organic Video"),      # order: video beats Referral
+        ("youtube", "cpc", None, "Paid Video"),              # order: paid video beats Display
+        ("news.ycombinator.com", "referral", None, "Referral"),
+        ("newsletter", "email", None, "Email"),
+        ("amazon", "cpc", None, "Paid Shopping"),
+        ("amazon", "referral", None, "Organic Shopping"),
+        ("chatgpt.com", "referral", None, "AI Assistant"),
+        ("partner", "affiliate", None, "Affiliates"),
+        ("spotify", "audio", None, "Audio"),
+        ("carrier", "sms", None, "SMS"),
+        ("app", "push", None, "Mobile Push Notifications"),
+        (None, None, None, "Direct"),
+        # regressions, each one a real misclassification found on 2026-07-28
+        ("netflix.com", "referral", None, "Referral"),       # `x\.com` matched as a substring
+        ("wix.com", "referral", None, "Referral"),
+        ("x.com", "referral", None, "Organic Social"),       # ...while the real one still works
+        ("www.docs.google.com", "referral", None, "Referral"),  # engine-product test was ^-anchored
+        ("fb ", "cpc", None, "Paid Social"),                 # untrimmed UTMs defeated exact lists
+    ]
+    wrong = []
+    for src, med, camp, expected in cases:
+        got = con.execute("SELECT channel_group(?, ?, ?)", [src, med, camp]).fetchone()[0]
+        if got != expected:
+            wrong.append(f"{src}/{med} -> {got} (want {expected})")
+    check(not wrong, f"channel_group classifies all {len(cases)} branch and ordering cases",
+          "; ".join(wrong) if wrong else f"{len(cases)} cases, including 5 order-sensitive pairs")
+
     failed = [name for ok, name, _ in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} checks passed")
     print("FAILED: " + ", ".join(failed) if failed else "ALL CHECKS PASSED")
