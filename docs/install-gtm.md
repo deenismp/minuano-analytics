@@ -76,7 +76,12 @@ tag tries to call it.
 - Persists **first touch** (`_mnu_ft`, 2 years) and **last touch** (`_mnu_lt`, 180 days) in cookies.
 - Persists `anonymous_id` (`_mnu_id`, 2 years) and `session_id` (`_mnu_ses`, 30-minute sliding
   expiry — the cookie's own lifetime *is* the inactivity window).
+- Mints an `event_id` on every event, so a beacon delivered twice is identifiable downstream.
 - Fires `page_view`.
+
+**Republish the container after upgrading the snippet.** An inlined tag is a *copy*; the
+collector accepting a new field does not mean your container is sending it, and nothing in GTM
+will tell you the two have drifted apart.
 
 Cookies rather than localStorage, because GTM's sandboxed templates can read and write cookies.
 One storage model across both install methods.

@@ -48,6 +48,7 @@ rows — nothing in this document is computed at collection time except `ingeste
 | Field | Type | Required | Example | Meaning |
 |---|---|:--:|---|---|
 | `schema_version` | string, always `"0"` | ✅ | `"0"` | Which contract this row was written against. Lets a future v1 live beside v0 in the same store. |
+| `event_id` | string, 8–64 chars | — | `mms4tzt1tilyacsqg` | Minted by the client, once per event. Two rows sharing one are the **same event delivered twice** — a `sendBeacon` retry, a proxy replay, a re-flushed batch — so a dedupe is `DISTINCT ON (event_id)`. **Optional and NULL-able on purpose:** every event collected before 2026-07-28 has none, and so does any browser or GTM container still serving a cached snippet, so dedupe on it must tolerate NULL rather than treat it as a key. It does **not** identify a tag that fires twice — that builds two events and mints two ids. |
 | `event_name` | string, `^[a-z][a-z0-9_]{0,39}$` | ✅ | `page_view`, `add_to_cart` | What happened. Lowercase, digits, underscores, ≤40 chars. Anything else is ignored by the snippet with a console warning. |
 | `event_timestamp` | string, RFC 3339 | ✅ | `2026-07-28T03:40:27.512Z` | When it happened, **from the client's clock**. Can be wrong — a skewed device is normal. |
 | `ingested_at` | string, RFC 3339 | server-set | `2026-07-28T03:40:27.998Z` | When the collector received it. **The only server-derived field**, and it overwrites anything the client sends. The partition key is its UTC date. |
@@ -177,7 +178,6 @@ Listed so you can design around them, and so nobody assumes they exist.
 | iOS attribution | object | Apple's AdServices returns a token exchanged for **numeric** campaign and ad-group ids. There is no `utm_source`, so it does not fit `campaign` and needs its own object. Android's Play Install Referrer *is* UTM-shaped and fits unchanged. |
 | per-event `params` contracts | — | `params` has no type discipline beyond "flat scalar". A contract per `event_name` is the obvious v1 conversation. |
 | `consent` | object | Consent state at collection time. There is no cookieless mode in v0. |
-| `event_id` | string (uuid) | Client-generated id for exactly-once dedupe on retries. Today a retried beacon can duplicate. |
 
 Changing any of the above means `schema_version` becomes `"1"`. Both versions can coexist in the
 same store — that is what the field is for.
