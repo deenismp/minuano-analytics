@@ -80,7 +80,33 @@ def read_stream(stream: str) -> list[dict]:
     return records
 
 
+def check_cors_rules() -> None:
+    """CORS policy is parsed here, not in a browser -- so assert the parse.
+
+    A subdomain wildcard cannot go in the response header (it must echo the caller's exact
+    origin), so `https://*.example.com` compiles to a regex. Getting that regex slightly wrong
+    either locks out the customer's own site or opens the endpoint to any origin, and neither
+    shows up until it is live.
+    """
+    import re as _re
+
+    from collector.app import _cors_rules
+
+    rules = _cors_rules(("https://example.com", "https://*.example.com"))
+    rx = _re.compile(rules["allow_origin_regex"])
+    cases = [("https://www.example.com", True), ("https://a.b.example.com", True),
+             ("https://example.com", False),          # apex is the exact entry, not the regex
+             ("https://evil.com", False),
+             ("https://example.com.evil.com", False),  # the one that matters
+             ("http://www.example.com", False)]       # scheme is part of the origin
+    wrong = [f"{o}->{bool(rx.fullmatch(o))}" for o, want in cases if bool(rx.fullmatch(o)) != want]
+    check(not wrong, "CORS subdomain wildcard matches subdomains and nothing else",
+          "; ".join(wrong) if wrong else f"{len(cases)} origins, incl. example.com.evil.com rejected")
+    check(_cors_rules(("*",))["allow_origins"] == ["*"], "a bare * still means allow everything")
+
+
 def main() -> int:
+    check_cors_rules()
     if DATA_DIR.exists():
         for path in sorted(DATA_DIR.rglob("*"), reverse=True):
             path.unlink() if path.is_file() else path.rmdir()

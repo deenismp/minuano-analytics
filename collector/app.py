@@ -26,6 +26,7 @@ import base64
 import binascii
 import copy
 import json
+import re
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -88,12 +89,35 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="minuano collector", version=__version__, lifespan=lifespan)
 
+def _cors_rules(origins: tuple[str, ...]) -> dict[str, Any]:
+    """Split exact origins from subdomain wildcards.
+
+    CORS cannot wildcard a subdomain in the response header: `Access-Control-Allow-Origin` has to
+    echo the caller's exact origin back, so `https://*.example.com` is not a value a browser
+    accepts. An entry containing `*` is therefore compiled into `allow_origin_regex`, which
+    Starlette `fullmatch`es against the Origin header before echoing the real value.
+
+    One knob, not two -- `MINUANO_CORS_ORIGINS` still describes the whole policy:
+
+        https://example.com                      exact
+        https://example.com,https://*.example.com  apex plus any subdomain
+        *                                        everything (the default)
+    """
+    if "*" in origins:
+        return {"allow_origins": ["*"], "allow_origin_regex": None}
+    exact = [o for o in origins if "*" not in o]
+    # `.` and `-` are allowed inside the wildcard so multi-level subdomains match too. fullmatch
+    # plus the escaped suffix means this can only ever match a real subdomain of that domain.
+    patterns = [re.escape(o).replace(r"\*", r"[A-Za-z0-9.\-]+") for o in origins if "*" in o]
+    return {"allow_origins": exact, "allow_origin_regex": "|".join(patterns) or None}
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=list(CFG.cors_origins),
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
     max_age=86400,
+    **_cors_rules(CFG.cors_origins),
 )
 
 
