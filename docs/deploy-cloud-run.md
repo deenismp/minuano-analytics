@@ -165,7 +165,16 @@ rather than exceptional.
 
 `/collect` is unauthenticated by necessity, so the URL is the credential. Before sharing it:
 
-- **A 30-day lifecycle delete rule on the bucket** — the storage cap. Apply it at creation.
+- **A lifecycle delete rule on the bucket** — the storage cap, and the only automatic bound on
+  what an abused public endpoint can accumulate. Apply it at creation. Pick the age deliberately:
+  a demo wants 30 days, but anything being compared against the reference platform wants to outlive the comparison —
+  this deployment runs **400 days**, matching the reference platform's 14-month ceiling for user-level data. Getting
+  this wrong is not retroactively fixable; data deleted on day 31 is gone.
+
+  ```bash
+  printf '{"rule":[{"action":{"type":"Delete"},"condition":{"age":400}}]}' > /tmp/lifecycle.json
+  gcloud storage buckets update "gs://$BUCKET" --lifecycle-file=/tmp/lifecycle.json --project="$PROJECT"
+  ```
 - **`--max-instances`** — bound the compute side. Cloud Run's free tier is 2M requests/month, and
   a cap turns a flood into throttling instead of a bill.
 - **Budget alert** (notifies, does not cap) and a **Cloud Monitoring alert on request count** —
