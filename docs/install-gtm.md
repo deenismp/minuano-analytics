@@ -23,9 +23,9 @@ stops a first install, and the answer below is deliberately the one that needs n
 
 ### Inline install
 
-Paste [`gtm-tag-inline.html`](gtm-tag-inline.html) — it is the config block and the whole
-minified snippet in one self-contained tag, already pointed at a live collector. Regenerate it
-whenever the snippet changes:
+Generate a self-contained tag — the config block plus the whole minified snippet — and paste the
+result into GTM. It is not committed here because the output embeds *your* collector URL, and on
+a public endpoint that URL is the closest thing to a credential you have:
 
 ```bash
 { printf '<script>\n  window.minuano = window.minuano || [];\n  window.minuanoConfig = { endpoint: "%s" };\n</script>\n<script>\n' "$ENDPOINT"
@@ -33,8 +33,9 @@ whenever the snippet changes:
   printf '\n</script>\n'; } > docs/gtm-tag-inline.html
 ```
 
-The trade is that updating the snippet means republishing the container. With one consumer that is
-a non-issue; GTM's version history makes it a two-click rollback.
+Keep the generated file out of version control. The trade is that updating the snippet means
+republishing the container. With one consumer that is a non-issue, and GTM's version history
+makes it a two-click rollback.
 
 ---
 
@@ -44,7 +45,7 @@ a non-issue; GTM's version history makes it a two-click rollback.
 **Trigger:** Initialization — All Pages
 **Advanced settings → Tag firing options:** Once per page
 
-Either paste `gtm-tag-inline.html` verbatim, or — once the snippet is hosted somewhere — use the
+Either paste the generated tag verbatim, or — once the snippet is hosted somewhere — use the
 two-part form:
 
 ```html

@@ -59,3 +59,4 @@ id_ed25519*
 # trap found along the way is working material. Read them locally, don't commit them.
 error.md
 docs/spec-increment-*.md
+docs/gtm-tag-inline.html
