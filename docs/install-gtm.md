@@ -9,11 +9,43 @@ see [Why the GET path exists](#why-the-get-path-exists) for what changes when it
 
 ---
 
+## First: where does `minuano.min.js` live?
+
+**The collector does not serve the snippet.** It exposes `/collect` and `/health`, and nothing
+else — so there is no URL to put in a `<script src>` unless you create one. This is the step that
+stops a first install, and the answer below is deliberately the one that needs no hosting at all.
+
+| Option | Cost | When |
+|---|---|---|
+| **Inline the snippet in the tag** | none | **Start here.** No hosting, no CDN account, no extra request. 2.8KB of inline JS is unremarkable for a GTM Custom HTML tag |
+| Serve it from the collector | a route | Best long-term: one origin, and the snippet can never drift out of step with the collector that receives its events |
+| A CDN (jsDelivr off the GitHub repo, Cloudflare) | an account, or a git tag per release | A third party in the critical path of every page load, for a 2.8KB file |
+
+### Inline install
+
+Paste [`gtm-tag-inline.html`](gtm-tag-inline.html) — it is the config block and the whole
+minified snippet in one self-contained tag, already pointed at a live collector. Regenerate it
+whenever the snippet changes:
+
+```bash
+{ printf '<script>\n  window.minuano = window.minuano || [];\n  window.minuanoConfig = { endpoint: "%s" };\n</script>\n<script>\n' "$ENDPOINT"
+  cat snippet/minuano.min.js
+  printf '\n</script>\n'; } > docs/gtm-tag-inline.html
+```
+
+The trade is that updating the snippet means republishing the container. With one consumer that is
+a non-issue; GTM's version history makes it a two-click rollback.
+
+---
+
 ## Tag 1 — load the snippet
 
 **Tag type:** Custom HTML
 **Trigger:** Initialization — All Pages
 **Advanced settings → Tag firing options:** Once per page
+
+Either paste `gtm-tag-inline.html` verbatim, or — once the snippet is hosted somewhere — use the
+two-part form:
 
 ```html
 <script>
@@ -30,7 +62,8 @@ see [Why the GET path exists](#why-the-get-path-exists) for what changes when it
 Replace both URLs with your own. The first `<script>` block matters as much as the second: it
 declares the **queue stub**, so a `minuano.track()` call that runs before the snippet finishes
 downloading is replayed rather than lost. Without it, early events on slow connections vanish
-silently.
+silently. When inlining, keep the two blocks in that order — `minuanoConfig` has to exist before
+the snippet reads it.
 
 Use the **Initialization** trigger, not All Pages, so the snippet is in place before any other
 tag tries to call it.
@@ -86,9 +119,18 @@ Sending an event that breaks these rules never loses data: the collector stores 
 2. Browser devtools → **Network**, filter on `collect`. You should see a `POST` with a
    `text/plain` content type (that is `sendBeacon`, and the reason there is no CORS preflight).
 3. Browser devtools → **Application → Cookies** — `_mnu_id`, `_mnu_ses`, `_mnu_ft` should be set.
-4. On the collector, `data/events/dt=<today>/` should have a new `.ndjson` file within the flush
-   interval. If an event is missing from there, look in `data/bad/` before assuming it was dropped —
+4. On the collector, `events/dt=<today>/` should have a new `.ndjson` file within the flush
+   interval. If an event is missing from there, look in `bad/` before assuming it was dropped —
    the collector never drops anything.
+
+   Against a cloud sink, that is:
+
+   ```bash
+   gcloud storage ls "gs://<bucket>/raw/events/dt=$(date -u +%F)/"   # GCS
+   aws s3 ls "s3://<bucket>/raw/events/dt=$(date -u +%F)/"           # S3
+   ```
+
+   `dt` is the **ingest** date in UTC, not the event date — see error.md, TRAP-9.
 
 ---
 
