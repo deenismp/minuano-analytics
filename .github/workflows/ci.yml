@@ -17,14 +17,14 @@ jobs:
     name: contract, collector, snippet, sink, analytics
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
 
       # The snippet suite drives snippet/minuano.js through a DOM shim.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
 
@@ -63,7 +63,7 @@ jobs:
 
       - name: evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: validation-output
           path: validation/output/
@@ -74,9 +74,9 @@ jobs:
     name: container, compose profiles, concurrency
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
 
@@ -90,7 +90,7 @@ jobs:
 
       - name: evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: container-output
           path: validation/output/

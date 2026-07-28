@@ -43,6 +43,21 @@ def _env_int(name: str, default: int) -> int:
     return int(raw)
 
 
+def _env_float(name: str, default: float) -> float:
+    """Separate from `_env_int` because a value like `0.5` is legitimate here and `int()` is not.
+
+    `flush_max_seconds` was typed float, documented in seconds, and parsed with `int()` wrapped in
+    `float()` -- so `MINUANO_FLUSH_MAX_SECONDS=0.5` died with `invalid literal for int()`. That
+    error surfaced from `CFG = config.load()` at module import, before any logging exists, so the
+    operator saw a bare traceback naming `int` for a setting nothing describes as an integer.
+    This is the knob most likely to be tuned, because it is the one that governs output file size.
+    """
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return float(raw)
+
+
 @dataclass(frozen=True)
 class Config:
     # Where raw events land. One URI, any backend. See the module docstring.
@@ -50,7 +65,7 @@ class Config:
 
     # Buffering. Flush when either bound is hit, and always on shutdown.
     flush_max_events: int = field(default_factory=lambda: _env_int("MINUANO_FLUSH_MAX_EVENTS", 100))
-    flush_max_seconds: float = field(default_factory=lambda: float(_env_int("MINUANO_FLUSH_MAX_SECONDS", 5)))
+    flush_max_seconds: float = field(default_factory=lambda: _env_float("MINUANO_FLUSH_MAX_SECONDS", 5.0))
 
     # A body larger than this is refused with 413 -- the one and only non-2xx response.
     max_body_bytes: int = field(default_factory=lambda: _env_int("MINUANO_MAX_BODY_BYTES", 1_048_576))
