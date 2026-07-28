@@ -8,10 +8,12 @@ Android, and iOS.
 
 *Minuano* is the cold wind that crosses the pampa in southern Brazil after a front passes.
 
-> **Status: pre-alpha.** v0 runs end to end from `docker compose` — collector, browser snippet, a
-> sink that reaches AWS, GCP or Azure through one URI, and a query layer that derives sessions and
-> the reference platform channel groups. Nothing here has served production traffic, no cloud backend has actually
-> been written to, and the event schema is version `0`, which means it can change.
+> **Status: pre-alpha.** v0 runs end to end — collector, browser snippet, a sink that reaches AWS,
+> GCP or Azure through one URI, and a query layer that derives sessions and channel groups. The
+> collector is deployed on Cloud Run against a real GCS bucket and has been verified end to end
+> there. It has **not** served production traffic; `s3://` and `az://` have never been written to;
+> the snippet has never run in a real browser; and the event schema is version `0`, which means it
+> can change.
 
 ## Why
 
@@ -43,8 +45,9 @@ afterwards by guessing at session ordering.
 grouping runs as a separate pass over immutable files. Get the classification wrong and you re-run
 it; you don't re-collect a month of traffic.
 
-**Sessions and channels follow the reference platform's published rules**, so the numbers mean what people already
-expect them to mean — without the data leaving infrastructure you control.
+**Sessions and channels follow the published rules the industry already standardised on** — a
+30-minute inactivity window, attribution taken at the session's first event — so the numbers mean
+what people already expect them to mean, without the data leaving infrastructure you control.
 
 Being straight about the hard part: the event contract handles web and Android today, and **iOS
 attribution does not fit it yet** — Apple's numeric Search Ads IDs have no home in a
@@ -54,12 +57,13 @@ shaped around; neither one is built.
 
 ## Design
 
-The data model is the reference platform's, on purpose.
+The data model deliberately copies the one the major analytics platforms converged on, rather than
+inventing a third way.
 
 1. **Every row is an event, not a session.** Sessions are derived downstream.
-2. **Collection does no enrichment.** the reference platform leaves `traffic_source` empty in its intraday streaming
-   tables and resolves attribution in a later pass; minuano stores raw UTMs exactly as observed and
-   leaves channel grouping to a batch job.
+2. **Collection does no enrichment.** The established pattern leaves traffic-source fields empty in
+   the streaming tables and resolves attribution in a later pass; minuano stores raw UTMs exactly as
+   observed and leaves channel grouping to a batch job.
 3. **Event parameters are flat, one level, capped at 25.** Nested objects wreck Athena queries.
 
 Two consequences worth stating up front:
@@ -143,8 +147,14 @@ Everything else is environment variables too:
 | `MINUANO_MAX_BODY_BYTES` | `1048576` | larger bodies get the one and only 4xx |
 | `MINUANO_CORS_ORIGINS` | `*` | comma-separated; set this in production |
 | `MINUANO_INSTANCE_ID` | random | appears in every object name, so instances never collide |
-| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | — | the raw key JSON, for hosts with no filesystem to mount one into. Written to a `0600` temp file at boot, never logged |
 | `PORT` | `8000` | the container binds whatever the platform assigns |
+
+**Credentials are not in this table on purpose.** minuano configures none: each fsspec backend
+resolves them through its own cloud's chain, so a Cloud Run service identity, an EC2 instance
+role, or a workload identity all work with nothing set. If your host has no filesystem to mount a
+key into, [`docs/deploy-railway.md`](docs/deploy-railway.md) covers the fallback — but reach for
+it only when the keyless path genuinely does not exist, because a long-lived key in an
+environment variable is a credential you now have to rotate, scope and keep out of logs.
 
 ### Querying what you collected
 
@@ -155,9 +165,9 @@ uv run analytics/run.py --data-dir <path>    # or on the host
 
 DuckDB reads the NDJSON where it sits — no load step, no service, views recreated on every run.
 The SQL in [`sql/`](sql/) derives the two things collection deliberately does not: **sessions**
-(attribution taken at the session's *first* event, the reference platform's rule) and **channel grouping** (the reference platform's
-default channel group as an ordered CASE). It is written to run on Athena unchanged once the sink
-points at a bucket — only the glob path differs.
+(attribution taken at the session's *first* event, on a 30-minute inactivity window) and **channel
+grouping** (the standard default channel group, as an ordered CASE). It is written to run on Athena
+unchanged once the sink points at a bucket — only the glob path differs.
 
 The report includes an `ingest partition vs event date` breakdown, which exists to keep one
 tradeoff visible: `dt` is the *ingest* date, so `WHERE dt = '<past date>'` silently returns nothing
@@ -190,7 +200,7 @@ precisely so the sandboxed-template route works, since GTM's `sendPixel` API is 
 |---|---|---|
 | 1 | contract, collector on local disk, browser snippet, GTM Custom HTML install | ✅ |
 | 2 | object-store writer, Dockerfile, docker-compose | ✅ |
-| 3 | query layer, sessions, the reference platform channel grouping (DuckDB, local) | ✅ |
+| 3 | query layer, sessions, channel grouping (DuckDB, local) | ✅ |
 | 4 | one URI-based sink across AWS/GCP/Azure, docker as the entry point | ✅ |
 | 5 | CI on Linux, contributor docs, the validation harness | ✅ |
 | 6 | deployable — `$PORT`, credentials from the environment, deploy runbooks | ✅ |
