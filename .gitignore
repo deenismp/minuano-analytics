@@ -53,3 +53,9 @@ application_default_credentials.json
 id_rsa*
 id_ed25519*
 *.p8
+
+# Internal development record — kept on disk, deliberately not tracked.
+# The public tree carries what a user or contributor needs; how each slice was scoped and every
+# trap found along the way is working material. Read them locally, don't commit them.
+error.md
+docs/spec-increment-*.md
