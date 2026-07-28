@@ -21,8 +21,8 @@ import duckdb
 ROOT = Path(__file__).resolve().parent.parent
 SQL_DIR = ROOT / "sql"
 
-# Order matters: `sessions` calls the macro that `channels` defines.
-SQL_FILES = ("events.sql", "channels.sql", "sessions.sql")
+# Order matters: `sessions` calls the macro that `channels` defines, and `health` reads both.
+SQL_FILES = ("events.sql", "channels.sql", "sessions.sql", "health.sql")
 
 
 def connect(location: str | Path) -> duckdb.DuckDBPyConnection:
@@ -139,6 +139,33 @@ def main() -> int:
     show(con, "rejected events", """
         SELECT dt, count(*) AS bad_rows, list_distinct(flatten(list(errors)))[1:3] AS sample_errors
         FROM bad_events GROUP BY 1 ORDER BY 1
+    """)
+
+    # Everything above is the answer. Everything below is how much of it to believe -- printed
+    # last so it is the part still on screen, and printed always so a clean run has to say so
+    # explicitly rather than by omission.
+    print("\n" + "=" * 70)
+    print("DATA QUALITY — how much of the above should you not trust?")
+    print("=" * 70)
+
+    show(con, "clock skew (outer buckets defeat the ±1 day pad)", """
+        SELECT * FROM health_clock_skew ORDER BY events DESC
+    """)
+
+    show(con, "event_id — snippet rollout, then duplicate deliveries", """
+        SELECT * FROM health_event_id
+    """)
+
+    show(con, "tagging: campaign set, medium empty → paid counted as organic", """
+        SELECT * FROM health_tagging ORDER BY sessions DESC LIMIT 10
+    """)
+
+    show(con, "entry paths that behave like a machine (suspects, not a filter)", """
+        SELECT * FROM health_robotic_paths ORDER BY sessions DESC LIMIT 10
+    """)
+
+    show(con, "your own tag debugging, counted as traffic", """
+        SELECT * FROM health_preview_traffic ORDER BY sessions DESC
     """)
 
     return 0
