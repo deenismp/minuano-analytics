@@ -80,10 +80,16 @@ def main() -> int:
             return 0
         raise
 
+    # A session is (visitor, session_id), never session_id alone. `session_id` is unix seconds at
+    # session start, so every visitor who starts a session in the same second shares one -- on the
+    # first day of real traffic a single second was shared by 21 visitors, and counting distinct
+    # ids alone reported 2313 sessions where there were 2542. The error scales with events per
+    # second, so it grows exactly as the deployment succeeds. `sessions.sql` always grouped by the
+    # pair; only this headline number was wrong.
     show(con, "volume", """
         SELECT count(*) AS events,
                count(DISTINCT anonymous_id) AS visitors,
-               count(DISTINCT session_id) AS sessions,
+               count(DISTINCT (anonymous_id, session_id)) AS sessions,
                min(event_timestamp) AS first_event,
                max(event_timestamp) AS last_event
         FROM events
