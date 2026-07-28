@@ -37,13 +37,14 @@ failure, so they compose into a pre-commit or CI step later.
 | `check_snippet` | UTMs are read from the URL and persisted to a page without them; the first event of a new visitor is `first_touch` and the rest are `last_touch`; `anonymous_id` survives a session boundary; 31 minutes of inactivity starts a new `session_id`; a `track()` call made before load still lands; a nested param is dropped and the valid ones kept |
 | `check_sink` | an unwritable sink is refused **at startup** rather than at first flush; a failed flush returns its events to the buffer instead of dropping them; `file://` and `memory://` produce byte-identical objects at identical keys — and `memory://` is not the local branch, so the object-store code path is exercised with no cloud SDK; one object per (stream, partition) per flush; no key reused; a URI whose backend is missing fails at boot **naming the extra to install**; an unknown scheme fails at boot |
 | `check_container` | the image builds and runs as a non-root user; the container's own `HEALTHCHECK` reports healthy; `docker compose stop` drains the buffer to the host volume; logs are one JSON object per line on stdout; `docker compose run --rm analytics` runs the same SQL in the container as on the host; the demo profile serves the page and the snippet; **two instances writing to one prefix lose nothing and do not overwrite each other** |
-| `check_analytics` | every collected event is visible to the query layer; three event-dates land in one ingest partition and filtering on `dt` for a past event-date returns 0 rows while `event_date` returns 3; sessions match the hand-authored shape; **attribution comes from the session's first event, not its last**; sessions re-derived from the 30-minute gap match the client's count; all nine fixture sessions classify into the expected the reference platform channel with none falling through to Unassigned |
+| `check_analytics` | every collected event is visible to the query layer; three event-dates land in one ingest partition and filtering on `dt` for a past event-date returns 0 rows while `event_date` returns 3; sessions match the hand-authored shape; **attribution comes from the session's first event, not its last**; sessions re-derived from the 30-minute gap match the client's count; all nine fixture sessions classify into the expected channel with none falling through to Unassigned |
 
 **The session rule is separately validated against real traffic.** Re-deriving session boundaries
-from a 30-minute inactivity gap over 33,687 real events reproduced the reference platform's own session count to
-within 0.08% (4,901 vs 4,905), with 99.8% of users matching exactly. That validates the *rule*;
-`sql/sessions.sql`'s implementation of it is still covered only by the fixtures below, because the
-comparison was re-implemented in BigQuery to run where the data is.
+from a 30-minute inactivity gap over 33,687 real events reproduced an established analytics
+platform's own session count to within 0.08% (4,901 vs 4,905), with 99.8% of users matching
+exactly. That validates the *rule*; `sql/sessions.sql`'s implementation of it is still covered only
+by the fixtures below, because the comparison was re-implemented in the warehouse to run where the
+data is.
 
 The expectations live in `cases/fixtures.json` and are hand-written. They are never generated
 from the collector's own output — an expectation derived from the mechanism being verified
@@ -81,16 +82,18 @@ proves nothing.
 - ~~**The container is proved on one platform.**~~ **Closed 2026-07-27.** CI runs the container
   suite on ubuntu-latest x86 as well as macOS arm64 — and found a data-loss bug on its first run
   (`error.md` BUG-1). Still unproven: any other architecture, and rootless Docker/Podman.
-- **The channel classifier agrees with the reference platform on ≥99.6% of 7.8M real events across two independent
-  properties** — 99.6% on one (from 92.9%) and 99.7% on another (from 97.6%), measured 2026-07-27
-  by diffing this macro against the reference platform's own `default_channel_group` over the same source/medium
-  pairs. Two properties is what makes it a generalisation rather than an overfit. The residual is:
-  - **Structural, unfixable from UTMs:** `google`/`cpc` that the reference platform calls *Display*, and campaigns it
-    calls *Cross-network* without the words appearing anywhere. Both need Google Ads metadata —
-    ad network type and campaign type — that a UTM does not carry. ~26k events, 0.35%.
-  - **Deliberate divergence, not a defect:** `search.brave.com` we call Organic Search where the reference platform
-    says Referral, and LLM referrers we call AI Assistant where the reference platform is inconsistent. the reference platform's managed
-    list is behind the traffic here; copying a stale list would be worse than being explicit.
+- **The channel classifier agrees with an established analytics platform on ≥99.6% of 7.8M real
+  events across two independent properties** — 99.6% on one (from 92.9%) and 99.7% on another
+  (from 97.6%), measured 2026-07-27 by diffing this macro against that platform's own default
+  channel group over the same source/medium pairs. Two properties is what makes it a generalisation
+  rather than an overfit. The residual is:
+  - **Structural, unfixable from UTMs:** paid search traffic the reference classifies as *Display*,
+    and campaigns it calls *Cross-network* without the words appearing anywhere. Both need ad-platform
+    metadata — ad network type and campaign type — that a UTM does not carry. ~26k events, 0.35%.
+  - **Deliberate divergence, not a defect:** `search.brave.com` we call Organic Search where the
+    reference says Referral, and LLM referrers we call AI Assistant where the reference is
+    inconsistent. Its managed list is behind the traffic here; copying a stale list would be worse
+    than being explicit.
   - **Residual substring over-matching:** `pinterest.lightning.force.com` becomes Organic Social
     because `pinterest` matches as a substring. The Google-property class (`docs.`, `mail.`,
     `accounts.`, `gemini.`) is now handled by `is_engine_product()`. What remains needs a managed

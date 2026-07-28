@@ -16,7 +16,7 @@
 
 `CLAUDE.md` lists the invariants — `ingested_at` as the only server-derived field, the collector
 never rejecting, raw being append-only and partitioned by ingest date, collection doing no
-enrichment, the reference platform's session rules.
+enrichment, the session rules.
 
 - [ ] This breaks none of them
 - [ ] This breaks one deliberately, and I have added a `PROJECT.md` decision-log entry saying

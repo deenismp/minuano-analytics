@@ -53,7 +53,7 @@ two-part form:
   window.minuanoConfig = {
     endpoint: 'https://collect.example.com/collect'
     // cookieDomain: '.example.com'   // set this to share the visitor across subdomains
-    // sessionMinutes: 30             // the reference platform's default; changing it changes your session counts
+    // sessionMinutes: 30             // the standard default; changing it changes your session counts
   };
 </script>
 <script async src="https://cdn.example.com/minuano.min.js"></script>
@@ -74,7 +74,7 @@ tag tries to call it.
   `gclid` and `fbclid` into `params`.
 - Persists **first touch** (`_mnu_ft`, 2 years) and **last touch** (`_mnu_lt`, 180 days) in cookies.
 - Persists `anonymous_id` (`_mnu_id`, 2 years) and `session_id` (`_mnu_ses`, 30-minute sliding
-  expiry — the cookie's own lifetime *is* the reference platform's inactivity window).
+  expiry — the cookie's own lifetime *is* the inactivity window).
 - Fires `page_view`.
 
 Cookies rather than localStorage, because GTM's sandboxed templates can read and write cookies.

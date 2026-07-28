@@ -9,7 +9,7 @@
 
 ## Goal
 
-Turn raw events into the two things the reference platform gives you and collection deliberately does not: **sessions**
+Turn raw events into the two things a hosted analytics product gives you and collection deliberately does not: **sessions**
 and **channel grouping**. Locally, with DuckDB reading the NDJSON where it sits.
 
 This is the pass that answers the question the whole storage layout was a bet on — *is
@@ -54,7 +54,7 @@ browser.
 
 ### Step 3 — Channel grouping
 
-- [x] `sql/channels.sql` — a `channel_group(source, medium, campaign)` macro implementing the reference platform's
+- [x] `sql/channels.sql` — a `channel_group(source, medium, campaign)` macro implementing the standard
       default channel group as an **ordered** CASE
 - [x] Rules taken verbatim from Google's documentation, not from memory, including the paid-medium
       regex `^(.*cp.*|ppc|retargeting|paid.*)$`
@@ -89,8 +89,8 @@ the file layout under test is the one the collector actually produces, not one t
 
 | Decision | Why | Alternatives rejected |
 |---|---|---|
-| DuckDB, not Postgres | The queries are analytical scans over event data — the workload columnar engines exist for, and the reason the reference platform exports to BigQuery rather than Cloud SQL. DuckDB also reads the NDJSON in place, so there is no loader to build, and its SQL ports to Athena with a path change. | **Postgres**: needs an ingest step that does not exist, and either a new loader job or a collector that writes to a database — abandoning the append-only-files architecture. Right answer later for the *dashboard serving layer*, wrong one for querying raw events. **Stdlib Python**: no dependency, but the logic is throwaway and ports to nothing. **MinIO + Trino**: closest to the Athena target, two containers, far too heavy for a project with no data yet. |
+| DuckDB, not Postgres | The queries are analytical scans over event data — the workload columnar engines exist for, and the reason hosted analytics products export to a warehouse rather than Cloud SQL. DuckDB also reads the NDJSON in place, so there is no loader to build, and its SQL ports to Athena with a path change. | **Postgres**: needs an ingest step that does not exist, and either a new loader job or a collector that writes to a database — abandoning the append-only-files architecture. Right answer later for the *dashboard serving layer*, wrong one for querying raw events. **Stdlib Python**: no dependency, but the logic is throwaway and ports to nothing. **MinIO + Trino**: closest to the Athena target, two containers, far too heavy for a project with no data yet. |
 | Views, recomputed every run | No state, no incremental logic, no staleness bugs. At this volume the whole dataset is a rounding error. | Materialised tables: premature, and adds a "is it stale?" question that does not need answering yet. |
 | Channel rules from Google's doc, not from training | This is the project's whole differentiator. A channel classifier that is subtly wrong is worse than none, because it looks right. | Writing the CASE from memory. |
-| Session attribution taken at session **start** | the reference platform: "the `session_start` event carries the information that determines the attribution of the session." Using the last event's campaign would re-attribute a session to whatever the visitor clicked last. | `arg_max`: silently wrong in exactly the case attribution matters. |
+| Session attribution taken at session **start** | The published rule: the session-start event carries the information that determines the attribution of the session. Using the last event's campaign would re-attribute a session to whatever the visitor clicked last. | `arg_max`: silently wrong in exactly the case attribution matters. |
 | Re-derive sessions as a DQ test, not as the source | The client assigns `session_id`; the batch job checking it independently is what catches a broken snippet. Replacing it would throw away the client's knowledge of what a "session" felt like. | Deriving sessions server-side only: loses the client signal, and every server-side or relayed event would fabricate its own session. |

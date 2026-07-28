@@ -167,8 +167,8 @@ rather than exceptional.
 
 - **A lifecycle delete rule on the bucket** — the storage cap, and the only automatic bound on
   what an abused public endpoint can accumulate. Apply it at creation. Pick the age deliberately:
-  a demo wants 30 days, but anything being compared against the reference platform wants to outlive the comparison —
-  this deployment runs **400 days**, matching the reference platform's 14-month ceiling for user-level data. Getting
+  a demo wants 30 days, but anything being compared against another analytics platform wants to outlive the comparison —
+  this deployment runs **400 days**, matching the 14-month ceiling common for user-level data. Getting
   this wrong is not retroactively fixable; data deleted on day 31 is gone.
 
   ```bash

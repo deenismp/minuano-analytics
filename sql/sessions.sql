@@ -1,6 +1,6 @@
 -- Sessions, derived. Collection never wrote one -- every row it stored is an event.
 --
--- Attribution is taken at session START, via arg_min over the event timestamp. the reference platform: "the
+-- Attribution is taken at session START, via arg_min over the event timestamp. The published rule: "the
 -- session_start event carries the information that determines the attribution of the session,
 -- such as the gclid, UTM parameters, and referrer." Using the last event's campaign instead would
 -- re-attribute a session to whatever the visitor happened to click most recently, which is wrong
@@ -33,7 +33,7 @@ GROUP BY anonymous_id, session_id;
 
 
 -- The same sessions, worked out again from scratch -- 30 minutes of inactivity per visitor,
--- the reference platform's rule -- without looking at the client's session_id.
+-- the published rule -- without looking at the client's session_id.
 --
 -- This is a data-quality test, not a replacement. The client knows things the warehouse does not
 -- (a tab left open, a cookie cleared), so its session_id stays authoritative. But if these two

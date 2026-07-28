@@ -61,7 +61,7 @@ The invariants are the short version:
   errors attached. A dropped event is unanswerable forever.
 - **Raw is append-only, partitioned by ingest date.** Never reorganise a closed partition.
 - **Collection does no enrichment.** Channel grouping happens in `sql/`, never at collect.
-- **Sessions follow the reference platform's rules verbatim** — 30 minutes of inactivity, no midnight reset, no split
+- **Sessions follow the published rules verbatim** — 30 minutes of inactivity, no midnight reset, no split
   on a new campaign.
 
 ## What review will ask

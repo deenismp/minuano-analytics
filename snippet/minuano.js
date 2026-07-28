@@ -4,7 +4,7 @@
  * Zero dependencies. Cookies, not localStorage, because GTM sandboxed templates can read and
  * write cookies -- one storage model across both install methods.
  *
- * Session rules are the reference platform's, verbatim: 30 minutes of inactivity, no midnight reset, no split on
+ * Session rules follow the published standard, verbatim: 30 minutes of inactivity, no midnight reset, no split on
  * a new campaign, session_id = unix seconds at session start.
  *
  * Configure before loading:

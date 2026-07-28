@@ -43,7 +43,7 @@ jobs:
       - name: sink — parity across backends, and the boot guards
         run: uv run validation/checks/check_sink.py
 
-      - name: analytics — sessions and the reference platform channel grouping
+      - name: analytics — sessions and channel grouping
         run: uv run validation/checks/check_analytics.py
 
       - name: snippet size budget

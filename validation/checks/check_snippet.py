@@ -113,7 +113,7 @@ def main() -> int:
     check(len(same_session) == 1, "session_id is stable within the inactivity window",
           f"session_ids={same_session}")
     check(fourth["session_id"] not in same_session,
-          "31 minutes of inactivity starts a new session (the reference platform's rule)",
+          "31 minutes of inactivity starts a new session (the 30-minute rule)",
           f"before={same_session.pop()} after={fourth['session_id']}")
     check(fourth["session_id"].isdigit() and len(fourth["session_id"]) >= 8,
           "session_id is unix seconds at session start", f"session_id={fourth['session_id']}")

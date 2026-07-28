@@ -16,10 +16,10 @@ a limited-use license. Nobody does best-in-class cross-platform campaign attribu
 
 ## Design principles
 
-Copied deliberately from the reference platform's model.
+Copied deliberately from the model the major analytics platforms converged on.
 
 1. **Every row is an event, not a session.** Sessions are derived downstream.
-2. **Collection does no enrichment.** the reference platform leaves `traffic_source` empty in its intraday streaming
+2. **Collection does no enrichment.** The reference model leaves traffic-source fields empty in its streaming
    tables and resolves attribution in a later processing pass. The collector stores raw UTMs
    exactly as observed; channel grouping happens in the batch pass in `sql/`, never at collect.
 3. **Event parameters are flat, one level, capped.** Nested objects wreck Athena queries.
@@ -43,7 +43,7 @@ Copied deliberately from the reference platform's model.
   never dropped.** Redact by replacement so the field's existence stays visible.
 - **`campaign.attribution` distinguishes first-touch from last-touch at the event level**, so it
   never has to be reconstructed from session ordering.
-- **Session rules are the reference platform's, verbatim:** 30 minutes of inactivity, no midnight reset, no split on
+- **Session rules follow the published standard, verbatim:** 30 minutes of inactivity, no midnight reset, no split on
   a new campaign, `session_id` = unix seconds at session start.
 - **Reserved event names:** `page_view`, `session_start`, `first_visit`. Custom events must not
   use them — the batch job will derive them.
