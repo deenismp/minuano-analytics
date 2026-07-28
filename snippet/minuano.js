@@ -95,6 +95,21 @@
     return c;
   }
 
+  // --- previous page ------------------------------------------------------------------
+  // `document.referrer` answers "who linked here", which is the right question for acquisition
+  // and the wrong one for in-site flow: it is empty on a direct visit or a new tab, and it is
+  // fixed at document load, so a single-page app never updates it. This is the last path *we
+  // tracked*, which survives both. Session-scoped on purpose -- a previous page from yesterday
+  // is not a journey step.
+  function readPrevious() {
+    var prev = getCookie('_mnu_prev');
+    return prev || null;
+  }
+
+  function rememberPage(path) {
+    setCookie('_mnu_prev', path, SESSION_SECONDS);
+  }
+
   // --- events -------------------------------------------------------------------------
   function cleanParams(params) {
     var out = {}, keys = Object.keys(params || {}), n = 0;
@@ -182,7 +197,11 @@
   var gclid = query.get('gclid'), fbclid = query.get('fbclid');
   if (gclid) pageParams.gclid = gclid;
   if (fbclid) pageParams.fbclid = fbclid;
+  // Read before writing: prev_path must describe the page *before* this one.
+  var previous = readPrevious();
+  if (previous) pageParams.prev_path = previous;
   send(build('page_view', pageParams));
+  rememberPage(w.location.pathname);
 
   for (var i = 0; i < queued.length; i++) track(queued[i][0], queued[i][1]);
 })(window, document);

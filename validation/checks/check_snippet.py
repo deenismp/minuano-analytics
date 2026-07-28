@@ -121,6 +121,24 @@ def main() -> int:
     check(third["page"]["path"] == "/signup" and third["device"]["platform"] == "web",
           "page and device context populated from the payload", f"page={third['page']['path']}")
 
+    # --- previous page ------------------------------------------------------------------
+    # `params.prev_path` is the last page the snippet itself tracked, not document.referrer.
+    # It exists because referrer is empty on a direct visit or a new tab and is never updated
+    # by a single-page-app route change -- so it cannot answer "where did they come from
+    # *inside* the site", which is the question a journey needs.
+    check("prev_path" not in first["params"],
+          "the first page of a visit has no previous page", f"params={first['params']}")
+    check(second["params"].get("prev_path") == "/pricing",
+          "second page carries the first page as prev_path",
+          f"prev_path={second['params'].get('prev_path')}")
+    check(third["params"].get("prev_path") == "/docs",
+          "the chain continues page to page", f"prev_path={third['params'].get('prev_path')}")
+    # Session-scoped deliberately: a page viewed before a 30-minute gap is not a journey step,
+    # it is a separate visit. The cookie lapses with the session cookie, so this must be absent.
+    check("prev_path" not in fourth["params"],
+          "prev_path does not survive the session boundary",
+          f"params={fourth['params']} (31 minutes later)")
+
     failed = [name for ok, name, _ in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} checks passed")
     print("FAILED: " + ", ".join(failed) if failed else "ALL CHECKS PASSED")

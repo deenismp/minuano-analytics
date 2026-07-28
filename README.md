@@ -108,6 +108,11 @@ does not split when a new campaign arrives mid-visit — a visitor who clicks an
 ten minutes and comes back is one session, not three. `session_id` is the unix second the session
 started, which makes it sortable and unique per visitor without a server round trip.
 
+Each `page_view` also carries `params.prev_path`: the last page the snippet tracked, held in a
+session-scoped cookie. That is the in-site journey step. `page.referrer` answers a different
+question — how the visit was *acquired* — and is empty on direct visits and never updates on
+single-page-app routes, which is exactly why both exist.
+
 Cookies rather than `localStorage`, because sandboxed tag-manager templates can read cookies and
 cannot read `localStorage` — one storage model works for both install methods.
 

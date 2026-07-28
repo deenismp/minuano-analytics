@@ -69,10 +69,12 @@ rows — nothing in this document is computed at collection time except `ingeste
 > append-only. Redaction only inspects `params`. Strip such parameters before the tag fires, or
 > keep those routes out of tracking.
 
-**On `referrer` as "the previous page":** it is the browser's own answer, so it is correct for
-ordinary link navigation and empty for direct visits or a new tab. It is **not** updated by
-single-page-app route changes, because it is fixed at document load — an SPA needs a GTM History
-Change trigger calling `minuano.track()`.
+**`referrer` vs `prev_path` — two different questions.** `page.referrer` is the browser's own
+answer to *"who linked here"*, which is what acquisition analysis needs. It is empty on direct
+visits and new tabs, and it is fixed at document load, so a single-page app never updates it.
+For *"which page did they come from inside the site"* use **`params.prev_path`**, which the
+snippet maintains itself from a session-scoped cookie and which survives both cases. An SPA still
+needs a GTM History Change trigger calling `minuano.track()` to fire an event at all.
 
 ## `campaign`
 
@@ -109,6 +111,7 @@ nested structures make columnar queries painful.
 
 | Example key | Type | Meaning |
 |---|---|---|
+| `prev_path` | string | **The previous page inside the site** — the last path the snippet itself tracked. Added automatically to `page_view`. Absent on the first page of a visit, and after a 30-minute gap. |
 | `gclid` | string | Google click id, captured automatically on `page_view` when present. |
 | `fbclid` | string | Meta click id, same. |
 | `plan` | string | Yours. Anything your event needs. |
@@ -169,7 +172,7 @@ Listed so you can design around them, and so nobody assumes they exist.
 
 | Field | Type | Why it is not here yet |
 |---|---|---|
-| `page.previous_path` | string or `null` | The reliable in-site previous page. `page.referrer` is empty on new tabs and never updates on SPA routes, so the snippet would persist the last tracked URL in a cookie instead. **Next planned change.** |
+| `page.previous_path` | string or `null` | Shipped as `params.prev_path` instead, because `campaign`/`page` are `additionalProperties: false` and `params` is the documented extension point. Promoting it into `page` is a v1 schema bump, not new behaviour. |
 | `campaign.click_id` | string or `null` | `gclid`/`fbclid` live in `params` today because `campaign` is closed (`additionalProperties: false`). Promoting them is a schema bump. |
 | iOS attribution | object | Apple's AdServices returns a token exchanged for **numeric** campaign and ad-group ids. There is no `utm_source`, so it does not fit `campaign` and needs its own object. Android's Play Install Referrer *is* UTM-shaped and fits unchanged. |
 | per-event `params` contracts | — | `params` has no type discipline beyond "flat scalar". A contract per `event_name` is the obvious v1 conversation. |
