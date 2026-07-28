@@ -16,6 +16,11 @@
 # collected events — never committed
 data/
 
+# the derived layer — a reproducible projection of raw, not a source. Deleting it costs one
+# `analytics/compact.py` run, so committing it would version a build artefact that goes stale
+# the moment a new event lands.
+derived/
+
 # validation run output — evidence is regenerated, not versioned
 validation/output/*
 !validation/output/.gitkeep

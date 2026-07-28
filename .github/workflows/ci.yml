@@ -51,6 +51,9 @@ jobs:
       - name: analytics — sessions and channel grouping
         run: uv run validation/checks/check_analytics.py
 
+      - name: derived — dedupe, clock trust, and rebuild idempotency
+        run: uv run validation/checks/check_derived.py
+
       - name: snippet size budget
         run: |
           npx --yes terser@5 snippet/minuano.js -c passes=3 -m --comments false -o /tmp/minuano.min.js
