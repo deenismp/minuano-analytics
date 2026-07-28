@@ -104,6 +104,14 @@ def main() -> int:
     check(len(ids) == 1, "anonymous_id is stable across page loads and across the session boundary",
           f"ids={ids}")
 
+    # The opposite promise to anonymous_id: that one is stable, this one must never repeat.
+    # It is what makes a duplicate *delivery* of one event identifiable downstream. It does not
+    # make a tag that fires twice identifiable -- that builds two events and mints two ids.
+    event_ids = [e.get("event_id") for e in events]
+    check(all(event_ids), "every event carries an event_id", f"event_ids={event_ids}")
+    check(len(set(event_ids)) == len(events), "event_id is unique per event",
+          f"{len(set(event_ids))} distinct across {len(events)} events")
+
     check(custom["event_name"] == "signup_completed",
           "a track() call made before the snippet loaded still landed", f"name={custom['event_name']}")
     check(custom["params"] == {"plan": "pro", "seats": 3},

@@ -26,6 +26,10 @@ FROM read_json(
     hive_partitioning = true,
     columns = {
         schema_version: 'VARCHAR',
+        -- Optional and client-minted. NULL for every event collected before 2026-07-28, and for
+        -- any install still serving a cached snippet -- so a dedup on it must tolerate NULL
+        -- rather than treat it as a key.
+        event_id: 'VARCHAR',
         event_name: 'VARCHAR',
         event_timestamp: 'TIMESTAMP',
         ingested_at: 'TIMESTAMP',

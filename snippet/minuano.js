@@ -128,6 +128,10 @@
   function build(name, params) {
     return {
       schema_version: '0',
+      // Minted per event, so a duplicate delivery of the *same* event is identifiable
+      // downstream. A tag that fires twice builds twice and gets two ids -- that is a
+      // different defect and this does not hide it.
+      event_id: uid(),
       event_name: name,
       event_timestamp: new Date().toISOString(),
       anonymous_id: anonymousId,

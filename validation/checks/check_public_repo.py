@@ -42,6 +42,10 @@ NEVER_TRACK = [
     ("docs/spec-increment-", "increment specs -- how a slice was scoped is working material"),
     ("docs/gtm-tag-inline.html", "generated, and stamped with a live endpoint URL"),
     ("refs/", "a reading list is not a deliverable"),
+    # Never tracked, so this one is a guard rather than a post-mortem. Permission rules name the
+    # real project, region and service; `settings.json` is the file a contributor would most
+    # plausibly commit "to help the team", and it is the wrong tree for it.
+    (".claude/", "Claude Code workspace config -- names live infrastructure, and is not product"),
 ]
 
 # Credential-shaped names. The ignore files also cover these; this catches a `git add -f`.

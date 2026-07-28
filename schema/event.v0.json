@@ -8,6 +8,7 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": { "type": "string", "const": "0" },
+    "event_id": { "type": "string", "minLength": 8, "maxLength": 64 },
     "event_name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$" },
     "event_timestamp": { "type": "string", "format": "date-time" },
     "ingested_at": { "type": "string", "format": "date-time" },

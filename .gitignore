@@ -60,3 +60,10 @@ id_ed25519*
 error.md
 docs/spec-increment-*.md
 docs/gtm-tag-inline.html
+
+# Claude Code workspace config. `settings.local.json` holds permission rules that name the real
+# GCP project, region and service -- exactly the infrastructure identifiers the rest of this file
+# and check_public_repo.py exist to keep out of a public tree. Ignore the whole directory rather
+# than one filename: agents, skills and command definitions written here later would each need
+# their own entry, and the one nobody adds is the one that leaks.
+.claude/

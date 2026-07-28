@@ -14,11 +14,37 @@
       }
     },
     {
+      "name": "event_id_absent_is_valid",
+      "expect": "good",
+      "why": "event_id must stay OPTIONAL. Every event collected before 2026-07-28 lacks it, and so does every browser and GTM container still serving a cached snippet. Making it required turns all of them into bad rows.",
+      "event": {
+        "schema_version": "0",
+        "event_name": "page_view",
+        "event_timestamp": "2026-07-27T12:00:00Z",
+        "anonymous_id": "anon_0000009",
+        "session_id": "1785500000"
+      }
+    },
+    {
+      "name": "event_id_too_short",
+      "expect": "bad",
+      "why": "optional does not mean unconstrained -- a truncated id would collide and silently over-deduplicate",
+      "event": {
+        "schema_version": "0",
+        "event_id": "m1a2",
+        "event_name": "page_view",
+        "event_timestamp": "2026-07-27T12:00:00Z",
+        "anonymous_id": "anon_0000010",
+        "session_id": "1785500000"
+      }
+    },
+    {
       "name": "full_valid",
       "expect": "good",
       "why": "every optional object populated",
       "event": {
         "schema_version": "0",
+        "event_id": "m1a2b3c4d5e6f7g8",
         "event_name": "signup_completed",
         "event_timestamp": "2026-07-27T12:00:01Z",
         "anonymous_id": "anon_0000002",
