@@ -104,7 +104,38 @@ GROUP BY 1
 HAVING count(*) >= 20
    AND 100.0 * count(*) FILTER (page_views = 1) / count(*) >= 95;
 
--- 5. Your own tag debugging, counted as traffic ---------------------------------------------
+-- 5. The tag platform's own scanner, counted as traffic -------------------------------------
+--
+-- Tag-manager platforms render pages that embed a tag from `gtm-msr.appspot.com` (an automated
+-- malware/behaviour scan of the container). Every such render fires the snippet and produces a
+-- perfectly-formed single-pageview session. Like preview traffic below, this is not a heuristic:
+-- that hostname is never a visitor. On real data it was 300 sessions in 9 days, all caught by
+-- `health_robotic_paths` only by the coincidence that the scanner always lands on one path.
+CREATE OR REPLACE VIEW health_scanner_traffic AS
+SELECT
+    entry_hostname,
+    count(*)                     AS sessions,
+    count(DISTINCT anonymous_id) AS visitors
+FROM sessions
+WHERE entry_hostname IN ('gtm-msr.appspot.com')
+GROUP BY 1;
+
+-- 6. Non-production hostnames in the production sink ------------------------------------------
+--
+-- A dev build pointed at the production collector pollutes every number above. The patterns are
+-- naming conventions, so this is a suspect list like the robotic paths -- but a hit is worth
+-- fixing at the source (point the dev environment at its own sink) rather than filtering here.
+CREATE OR REPLACE VIEW health_nonprod_hostnames AS
+SELECT
+    entry_hostname,
+    count(*)                     AS sessions,
+    count(DISTINCT anonymous_id) AS visitors
+FROM sessions
+WHERE regexp_matches(coalesce(entry_hostname, ''),
+        '^(localhost|127\.0\.0\.1)([:.]|$)|^(develop|dev|staging|stage|test|testing|preview|homolog|hml|qa|sandbox)\.')
+GROUP BY 1;
+
+-- 7. Your own tag debugging, counted as traffic ---------------------------------------------
 --
 -- Separated from the view above because this one is not a heuristic. A `preview`-shaped source
 -- or `medium = test` is unambiguously not a visitor, and it should never be argued about.

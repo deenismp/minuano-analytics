@@ -250,6 +250,14 @@ The SQL in [`sql/`](sql/) derives the two things collection deliberately does no
 grouping** (the standard default channel group, as an ordered CASE). It is written to run on Athena
 unchanged once the sink points at a bucket — only the glob path differs.
 
+A session with no UTM parameters is not automatically Direct. Attribution resolves in order:
+a Google Ads click id (→ `google / cpc`), then UTMs verbatim, then the session-start **referrer**
+— a known search engine becomes `<engine> / organic`, any other external site
+`<hostname> / referral`. Each session's `attribution_from` column says which rule fired, so
+inferred attribution is never mistaken for tagged. Set `MINUANO_INTERNAL_DOMAINS` (comma-separated
+registrable domains, e.g. `example.com,example.com.br`) so your own subdomains are not counted as
+referrers of yourself; matching is by suffix, so one entry covers every subdomain.
+
 The report includes an `ingest partition vs event date` breakdown, which exists to keep one
 tradeoff visible: `dt` is the *ingest* date, so `WHERE dt = '<past date>'` silently returns nothing
 for events that happened then. Filter on `dt` to prune files, on `event_date` to answer a question,

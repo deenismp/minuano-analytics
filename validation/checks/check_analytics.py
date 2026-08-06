@@ -187,6 +187,82 @@ def main() -> int:
     check(not wrong, f"channel_group classifies all {len(cases)} branch and ordering cases",
           "; ".join(wrong) if wrong else f"{len(cases)} cases, including 5 order-sensitive pairs")
 
+    # --- referrer-based source inference (increment 11) --------------------------------
+    # Cases come from the THREAT, not the happy path (the BUG-2 lesson): every row is a way
+    # the inference could silently lie. Each calls the macro directly; the composed rows then
+    # push the inferred pair through channel_group to prove the CASE routes it unchanged.
+    inference_cases = [
+        # (src, med, camp, click_id, referrer, internal_csv,
+        #  expected: (source, medium, attribution_from))          # why this row exists
+        ("google", "cpc", "c1", None, "https://x.com/", "",
+         ("google", "cpc", "utm")),                     # UTMs win over a referrer
+        (None, None, None, "abc123", "https://duckduckgo.com/", "",
+         ("google", "cpc", "click_id")),                # click id wins over a referrer
+        ("newsletter", "email", "c2", "abc123", None, "",
+         ("google", "cpc", "click_id")),                # click id wins over UTMs (transcribed rule)
+        (None, None, "camp_only", None, "https://www.google.com/", "",
+         (None, None, "utm")),                          # campaign-only tagging stays a visible
+                                                        # tagging defect, never silently inferred
+        (None, None, None, None, "https://www.google.com/search?q=x", "",
+         ("google", "organic", "referrer")),            # the headline case: engine -> organic
+        (None, None, None, None, "HTTPS://WWW.GOOGLE.COM.BR/", "",
+         ("google", "organic", "referrer")),            # case-insensitive, ccTLD, canonical name
+        (None, None, None, None, "https://br.search.yahoo.com/search", "",
+         ("yahoo", "organic", "referrer")),             # deep subdomain still matches (BUG-3 anchor lesson)
+        (None, None, None, None, "https://mail.google.com/mail/u/0/", "",
+         ("mail.google.com", "referral", "referrer")),  # engine PRODUCT is not a search
+        (None, None, None, None, "https://www.youtube.com/watch?v=1", "",
+         ("youtube.com", "referral", "referrer")),      # video host -> referral; CASE makes it Organic Video
+        (None, None, None, None, "https://www.instagram.com/p/1/", "",
+         ("instagram.com", "referral", "referrer")),    # social host -> referral; CASE makes it Organic Social
+        (None, None, None, None, "https://blog.example.org/post", "",
+         ("blog.example.org", "referral", "referrer")), # unknown external site -> Referral
+        ("", " ", None, None, "https://www.bing.com/", "",
+         ("bing", "organic", "referrer")),              # whitespace-only UTMs are not UTMs
+        (None, None, None, None, "android-app://com.google.android.gm", "",
+         ("com.google.android.gm", "referral", "referrer")),  # a mail APP contains "google"; not organic
+        (None, None, None, None, "https://app.example.com.br/x", "example.com.br",
+         (None, None, "none")),                         # internal subdomain -> direct, not self-referral
+        (None, None, None, None, "https://a.b.example.com.br/", " other.com , example.com.br ",
+         (None, None, "none")),                         # deep subdomain + spaces in the config list
+        (None, None, None, None, "https://example.com.br/", "example.com.br",
+         (None, None, "none")),                         # the bare domain itself is internal too
+        (None, None, None, None, "https://notexample.com.br/", "example.com.br",
+         ("notexample.com.br", "referral", "referrer")),  # suffix match must not over-match
+        (None, None, None, None, None, "example.com.br",
+         (None, None, "none")),                         # no referrer at all -> direct
+    ]
+    wrong = []
+    for src, med, camp, cid, ref, internal, expected in inference_cases:
+        got = con.execute(
+            "SELECT infer_traffic_source(?, ?, ?, ?, ?, ?)",
+            [src, med, camp, cid, ref, internal]).fetchone()[0]
+        triple = (got["source"], got["medium"], got["attribution_from"])
+        if triple != expected:
+            wrong.append(f"{src}/{med}/ref={ref} -> {triple} (want {expected})")
+    check(not wrong, f"infer_traffic_source resolves all {len(inference_cases)} precedence and threat cases",
+          "; ".join(wrong) if wrong else "click_id > utm > referrer > none, internal domains excluded")
+
+    # The inferred pair must route through the UNCHANGED channel CASE to the right channel --
+    # inference produces source/medium; the CASE is the classifier. If one of these fails while
+    # the block above passes, someone made the channel macro referrer-aware, which the spec forbids.
+    composed = [
+        ("https://www.google.com/", "Organic Search"),
+        ("https://www.youtube.com/watch?v=1", "Organic Video"),
+        ("https://www.instagram.com/p/1/", "Organic Social"),
+        ("https://blog.example.org/post", "Referral"),
+    ]
+    wrong = []
+    for ref, expected_channel in composed:
+        got = con.execute("""
+            SELECT channel_group(i['source'], i['medium'], i['campaign'])
+            FROM (SELECT infer_traffic_source(NULL, NULL, NULL, NULL, ?, '') AS i)
+        """, [ref]).fetchone()[0]
+        if got != expected_channel:
+            wrong.append(f"{ref} -> {got} (want {expected_channel})")
+    check(not wrong, "inferred source/medium routes through channel_group to the expected channel",
+          "; ".join(wrong) if wrong else f"{len(composed)} referrer channels via the unchanged CASE")
+
     failed = [name for ok, name, _ in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} checks passed")
     print("FAILED: " + ", ".join(failed) if failed else "ALL CHECKS PASSED")

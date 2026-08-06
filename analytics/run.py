@@ -41,6 +41,10 @@ def connect(location: str | Path) -> duckdb.DuckDBPyConnection:
     con = duckdb.connect()
     con.execute(f"SET VARIABLE events_glob = '{root}/events/dt=*/*.ndjson'")
     con.execute(f"SET VARIABLE bad_glob = '{root}/bad/dt=*/*.ndjson'")
+    # Your own domains, so a visitor crossing subdomains is not inferred as a referral.
+    # Comma-separated registrable domains, suffix-matched; empty means no exclusion.
+    internal = os.getenv("MINUANO_INTERNAL_DOMAINS", "").replace("'", "")
+    con.execute(f"SET VARIABLE internal_domains = '{internal}'")
     for name in SQL_FILES:
         con.execute((SQL_DIR / name).read_text(encoding="utf-8"))
 
@@ -160,8 +164,24 @@ def main() -> int:
         SELECT * FROM health_tagging ORDER BY sessions DESC LIMIT 10
     """)
 
+    # Where each session's attribution came from. 'referrer' rising means the inference is doing
+    # work UTMs did not; 'none' is what is genuinely direct after inference.
+    show(con, "attribution provenance (click_id / utm / referrer / none)", """
+        SELECT attribution_from, count(*) AS sessions,
+               round(100.0 * count(*) / sum(count(*)) OVER (), 1) AS pct
+        FROM sessions GROUP BY 1 ORDER BY sessions DESC
+    """)
+
     show(con, "entry paths that behave like a machine (suspects, not a filter)", """
         SELECT * FROM health_robotic_paths ORDER BY sessions DESC LIMIT 10
+    """)
+
+    show(con, "the tag platform's scanner, counted as traffic", """
+        SELECT * FROM health_scanner_traffic ORDER BY sessions DESC
+    """)
+
+    show(con, "non-production hostnames in this sink", """
+        SELECT * FROM health_nonprod_hostnames ORDER BY sessions DESC
     """)
 
     show(con, "your own tag debugging, counted as traffic", """
