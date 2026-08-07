@@ -75,8 +75,8 @@ Two consequences worth stating up front:
 
 - **The collector never drops an event.** It always returns 2xx. Valid events land in
   `data/events/dt=…`; invalid ones land in `data/bad/dt=…` with their validation errors attached,
-  so they can be fixed and replayed. Snowplow's collector takes the same position — write
-  everything, fork good from bad, stay non-lossy.
+  so they can be fixed and replayed. The non-lossy streaming pipelines take the same position —
+  write everything, fork good from bad downstream.
 - **`ingested_at` is the only server-derived field.** Nothing is read off the request socket, which
   is what makes server-side relays (server-side GTM, future server SDKs) work correctly rather than
   labelling every event with the relay's identity.
@@ -327,5 +327,6 @@ All six suites run in CI on every pull request, on Linux.
 
 ## License
 
-Apache 2.0. Snowplow's architecture informed this project's design; none of its licensed server
-code is used.
+Apache 2.0. All code in this repository is original to this project. The event model and session
+rules deliberately follow published industry standards — see the design principles above — so
+minuano's numbers are comparable with the platforms users already run.
