@@ -9,8 +9,9 @@ consistently across all three.
 **The gap it fills:** cross-platform campaign attribution. Matomo has real Android and iOS SDKs,
 but its Android acquisition reports show install source only, not campaigns, and iOS campaigns
 only work if the tracker is explicitly configured. PostHog has good mobile SDKs but weak
-marketing channel modeling. Snowplow has the right architecture but its server components carry
-a limited-use license. Nobody does best-in-class cross-platform campaign attribution in open source.
+marketing channel modeling. The pipelines with the strongest architectures carry limited-use
+licenses on their server components. Nobody does best-in-class cross-platform campaign
+attribution in open source.
 
 ---
 
@@ -129,9 +130,10 @@ commit, or the next session will not know.
 
 ## Licensing
 
-Apache 2.0. Snowplow's architecture may be studied freely; its server components are under the
-Snowplow Limited Use License (no highly-available production use, no competing product), so their
-code must not be copied. Snowplow's *trackers* are Apache 2.0.
+Apache 2.0. All code in this tree is original to this project. Other platforms in this space are
+engaged only through their published documentation; the working constraints that carry licensing
+weight live in `error.md`, and `check_public_repo` enforces that no named platform's internals
+are discussed in the public tree.
 
 ## Reference material
 

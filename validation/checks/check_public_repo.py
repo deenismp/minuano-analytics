@@ -78,6 +78,11 @@ CONTENT_RULES = [
                 r"|(?<!github\.com/deenismp/)\bminuano-analytics\b(?!/actions)"),
      "a real infrastructure identifier",
      "use $BUCKET / $PROJECT placeholders so the runbook reads as a template"),
+    # Named platforms stay out of the public tree (2026-08-06 decision). The rules and
+    # measurements stand on their own; sources and licensing constraints live in error.md.
+    (re.compile(r"(?i)\bsnowplow\b|\bSLULA\b"),
+     "a named platform's internals",
+     "state the rule, not the source; provenance and constraints live in error.md"),
 ]
 
 SELF = "validation/checks/check_public_repo.py"
